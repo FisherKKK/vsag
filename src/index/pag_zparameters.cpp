@@ -100,6 +100,7 @@ PAGraphParameter::ToJson() {
     json["graph"] = graph_param_->ToJson();
     json["odescent"] = odescent_param_->ToJson();
     json["base_codes"] = graph_flatten_codes_param_->ToJson();
+    return json;
 }
 
 

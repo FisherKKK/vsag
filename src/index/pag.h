@@ -15,8 +15,10 @@
 
 #include "algorithm/inner_index_interface.h"
 #include "data_cell/graph_interface.h"
+#include "parameter.h"
 #include "quantization/fp32_quantizer.h"
 
+#include <memory>
 #include <random>
 
 #include "impl/basic_searcher.h"
@@ -38,6 +40,11 @@ public:
     using InnerIdBucketPtr = std::shared_ptr<InnerIdBucket>;
 
     PAGraph(const PAGraphParameterPtr &pag_param, const IndexCommonParam& common_param);
+
+    PAGraph(const ParamPtr &param, const IndexCommonParam& common_param)
+        : PAGraph(std::dynamic_pointer_cast<PAGraphParameter>(param), common_param) {}
+
+    ~PAGraph() override = default;
 
     std::vector<int64_t> Build(const DatasetPtr &base) override;
 

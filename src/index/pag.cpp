@@ -14,6 +14,7 @@
 // limitations under the License.
 
 #include "pag.h"
+#include <memory>
 
 #include "quantization/fp32_quantizer.h"
 #include "utils/util_functions.h"
@@ -41,8 +42,8 @@ PAGraph::PAGraph(const PAGraphParameterPtr& pag_param, const IndexCommonParam& c
       graph_flatten_codes_param_(pag_param->graph_flatten_codes_param_),
       graph_param_(pag_param->graph_param_),
       odescent_param_(pag_param->odescent_param_) {
-    line_size_ = capacity_ * sizeof(float); // TODO: for float
     code_size_ = dim_ * sizeof(float);
+    line_size_ = capacity_ * code_size_; // TODO: for float
     pool_ = std::make_unique<VisitedListPool>(
     1, common_param.allocator_.get(), max_capacity_, common_param_.allocator_.get());
     searcher_ = std::make_unique<BasicSearcher>(common_param_);
@@ -58,6 +59,7 @@ PAGraph::Build(const DatasetPtr& base) {
     const auto* base_ids = base->GetIds();
 
     // Only point for inner id --> outer label mapping
+    label_table_->label_table_.resize(num_elements);
     memcpy(this->label_table_->label_table_.data(), base_ids, sizeof(LabelType) * num_elements);
     num_sample_ = static_cast<uint64_t>(num_elements * sample_rate_);
     auto lower_num_sample = static_cast<int64_t>(num_sample_ * start_decay_rate_);
@@ -101,8 +103,9 @@ PAGraph::Build(const DatasetPtr& base) {
         buckets_->reserve(num_sample_);
         radii_.reserve(num_sample_);
         for (auto _: graph_ids_) {
-            buckets_->emplace_back(std::make_unique<Vector<InnerIdType>>(allocator_));
-            buckets_->back()->reserve(capacity_);
+            auto bucket = std::make_unique<Vector<InnerIdType>>(allocator_);
+            bucket->reserve(capacity_);
+            buckets_->emplace_back(std::move(bucket));
         }
 
         //TODO: whether keep the sample sequence
@@ -115,7 +118,7 @@ PAGraph::Build(const DatasetPtr& base) {
 
         // Insert the vectors to  graph flatten code
         for (auto graph_id: graph_ids_) {
-            const auto* vec = base_vectors + graph_id * code_size_;
+            const auto* vec = base_vectors + graph_id * dim_;
             graph_flatten_codes_->InsertVector(vec);
         }
 
@@ -155,7 +158,7 @@ PAGraph::Build(const DatasetPtr& base) {
         if (iter == num_iter_ - 1)
             break;
         // Update the centroid
-        Vector<InnerIdType> tmp_inner_ids(common_param_.allocator_.get());
+        Vector<InnerIdType> tmp_inner_ids(allocator_);
         tmp_inner_ids.reserve(graph_ids_.size());
 
         for (int i = 0; i < buckets_->size(); i++) {
@@ -206,6 +209,7 @@ PAGraph::Build(const DatasetPtr& base) {
             stream.write((char*)dummy_vec.data(), sizeof(float) * dim_);
         }
     }
+    return {};
 }
 
 DatasetPtr
@@ -246,7 +250,8 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         issue_offsets[issue_count] = line_size_ * centroid_id;
         issue_sizes[issue_count] = issue_size;
         issue_data_size += issue_size;
-        issue_bucket_inner_ids.emplace(issue_bucket_inner_ids.end(), bucket->begin(), bucket->end());
+        issue_bucket_inner_ids.insert(issue_bucket_inner_ids.end(), bucket->begin(), bucket->end());
+        // issue_bucket_inner_ids.emplace
         issue_count += 1;
     }
 
@@ -368,8 +373,9 @@ PAGraph::Deserialize(StreamReader& reader) {
     graph_->Deserialize(reader);
 
     // Bucket ids
+    buckets_ = std::make_shared<InnerIdBucket>(allocator_);
     for (int i = 0; i < graph_ids_.size(); i++) {
-        auto bucket = std::make_unique<Vector<InnerIdType>>();
+        auto bucket = std::make_unique<Vector<InnerIdType>>(allocator_);
         StreamReader::ReadVector(reader, *bucket);
         buckets_->emplace_back(std::move(bucket));
     }
@@ -404,7 +410,7 @@ PAGraph::RangeSearch(const DatasetPtr& query,
 
 Vector<InnerIdType>
 PAGraph::sample_graph_ids(int64_t num_elements, int64_t num_sample) {
-    Vector<InnerIdType> reservoir(common_param_.allocator_.get());
+    Vector<InnerIdType> reservoir(allocator_);
     reservoir.resize(num_sample);
 
     for (int64_t i = 0; i < num_sample; i++) reservoir[i] = i;
@@ -587,9 +593,9 @@ PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_cap
     if (bucket_ratio <= 0.0f) {
         bucket_factor = 1.0f;
     } else if (bucket_ratio <= 0.5f) {
-        bucket_factor = 0.95;
+        bucket_factor = 0.95f;
     } else if (bucket_ratio <= 0.8f) {
-        bucket_factor = 0.8;
+        bucket_factor = 0.8f;
     } else {
         bucket_factor = 0.4f;
     }
@@ -602,8 +608,8 @@ PAGraph::calculate_new_centroid(const Vector<InnerIdType> &members, const Datase
     const float *base_vecs = base->GetFloat32Vectors();
 
 
-    Vector<float> sum(common_param_.allocator_.get());
-    sum.resize(0.f, dim_);
+    Vector<float> sum(allocator_);
+    sum.resize(dim_, 0.f);
     for (auto mem: members) {
         const float *vec = base_vecs + dim_ * mem;
         for (int i = 0; i < dim_; i++) {
