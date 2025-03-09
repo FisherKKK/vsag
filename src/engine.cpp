@@ -31,6 +31,7 @@
 #include "index/index_impl.h"
 #include "index/pyramid.h"
 #include "index/pyramid_zparameters.h"
+#include "index/pag.h"
 #include "resource_owner_wrapper.h"
 #include "safe_thread_pool.h"
 #include "typing.h"
@@ -128,6 +129,15 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
             pyramid_params.FromJson(pyramid_param_obj);
             logger::debug("created a pyramid index");
             return std::make_shared<Pyramid>(pyramid_params, index_common_params);
+        } else if (name == INDEX_PAGRAPH) {
+            logger::debug("created a pagraph index");
+            JsonType pagraph_json;
+            if (parsed_params.contains(INDEX_PARAM)) {
+                pagraph_json = std::move(parsed_params[INDEX_PARAM]);
+            }
+            auto pagraph_index =
+                std::make_shared<IndexImpl<PAGraph>>(pagraph_json, index_common_params);
+            return pagraph_index;
         } else {
             LOG_ERROR_AND_RETURNS(
                 ErrorType::UNSUPPORTED_INDEX, "failed to create index(unsupported): ", name);
