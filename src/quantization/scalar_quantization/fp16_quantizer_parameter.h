@@ -15,15 +15,14 @@
 
 #pragma once
 
-#include "io/io_parameter.h"
-#include "parameter.h"
 #include "quantization/quantizer_parameter.h"
 
 namespace vsag {
-
-class BucketDataCellParameter : public Parameter {
+class FP16QuantizerParameter : public QuantizerParameter {
 public:
-    explicit BucketDataCellParameter();
+    FP16QuantizerParameter();
+
+    ~FP16QuantizerParameter() override = default;
 
     void
     FromJson(const JsonType& json) override;
@@ -32,13 +31,8 @@ public:
     ToJson() override;
 
 public:
-    QuantizerParamPtr quantizer_parameter{nullptr};
-
-    IOParamPtr io_parameter{nullptr};
-
-    int64_t buckets_count{1};
 };
 
-using BucketDataCellParamPtr = std::shared_ptr<BucketDataCellParameter>;
+using FP16QuantizerParamPtr = std::shared_ptr<FP16QuantizerParameter>;
 
 }  // namespace vsag

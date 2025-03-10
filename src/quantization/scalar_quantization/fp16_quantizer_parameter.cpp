@@ -13,32 +13,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
+#include "fp16_quantizer_parameter.h"
 
-#include "io/io_parameter.h"
-#include "parameter.h"
-#include "quantization/quantizer_parameter.h"
+#include "inner_string_params.h"
 
 namespace vsag {
 
-class BucketDataCellParameter : public Parameter {
-public:
-    explicit BucketDataCellParameter();
+FP16QuantizerParameter::FP16QuantizerParameter()
+    : QuantizerParameter(QUANTIZATION_TYPE_VALUE_FP16) {
+}
 
-    void
-    FromJson(const JsonType& json) override;
+void
+FP16QuantizerParameter::FromJson(const JsonType& json) {
+}
 
-    JsonType
-    ToJson() override;
-
-public:
-    QuantizerParamPtr quantizer_parameter{nullptr};
-
-    IOParamPtr io_parameter{nullptr};
-
-    int64_t buckets_count{1};
-};
-
-using BucketDataCellParamPtr = std::shared_ptr<BucketDataCellParameter>;
-
+JsonType
+FP16QuantizerParameter::ToJson() {
+    JsonType json;
+    json[QUANTIZATION_TYPE_KEY] = QUANTIZATION_TYPE_VALUE_FP16;
+    return json;
+}
 }  // namespace vsag

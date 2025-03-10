@@ -20,6 +20,7 @@
 #include <string>
 
 #include "algorithm/hgraph.h"
+#include "algorithm/ivf.h"
 #include "common.h"
 #include "index/brute_force.h"
 #include "index/brute_force_parameter.h"
@@ -97,10 +98,7 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
             if (parsed_params.contains(INDEX_PARAM)) {
                 json = std::move(parsed_params[INDEX_PARAM]);
             }
-            BruteForceParameter param;
-            param.FromJson(json);
-            auto brute_force = std::make_shared<BruteForce>(param, index_common_params);
-
+            auto brute_force = std::make_shared<IndexImpl<BruteForce>>(json, index_common_params);
             return brute_force;
         } else if (name == INDEX_DISKANN) {
             // read parameters from json, throw exception if not exists
@@ -120,6 +118,14 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
             auto hgraph_index =
                 std::make_shared<IndexImpl<HGraph>>(hgraph_json, index_common_params);
             return hgraph_index;
+        } else if (name == INDEX_IVF) {
+            logger::debug("created an ivf index");
+            JsonType ivf_json;
+            if (parsed_params.contains(INDEX_PARAM)) {
+                ivf_json = std::move(parsed_params[INDEX_PARAM]);
+            }
+            auto ivf_index = std::make_shared<IndexImpl<IVF>>(ivf_json, index_common_params);
+            return ivf_index;
         } else if (name == INDEX_PYRAMID) {
             // read parameters from json, throw exception if not exists
             CHECK_ARGUMENT(parsed_params.contains(INDEX_PARAM),
