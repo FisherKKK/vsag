@@ -65,7 +65,7 @@ PAGraph::Build(const DatasetPtr& base) {
     auto lower_num_sample = static_cast<int64_t>(num_sample_ * start_decay_rate_);
 
     pool_ = std::make_unique<VisitedListPool>(
-        1, allocator_, max_capacity_, allocator_);
+        1, allocator_, num_elements, allocator_);
 
     // flatten_interface_ptr_->Train(base_vectors, num_elements);
     // flatten_interface_ptr_->BatchInsertVector(base_vectors, num_elements);
@@ -101,11 +101,11 @@ PAGraph::Build(const DatasetPtr& base) {
         // meanwhile reserve the elements
         buckets_ = std::make_shared<InnerIdBucket>(allocator_);
         buckets_->reserve(num_sample_);
+        radii_.clear();
         radii_.reserve(num_sample_);
         for (auto _: graph_ids_) {
-            auto bucket = std::make_unique<Vector<InnerIdType>>(allocator_);
-            bucket->reserve(capacity_);
-            buckets_->emplace_back(std::move(bucket));
+            buckets_->emplace_back(std::make_unique<Vector<InnerIdType>>(allocator_));
+            buckets_->back()->reserve(capacity_);
         }
 
         //TODO: whether keep the sample sequence
@@ -209,6 +209,8 @@ PAGraph::Build(const DatasetPtr& base) {
             stream.write((char*)dummy_vec.data(), sizeof(float) * dim_);
         }
     }
+
+    num_elements_ += num_elements;
     return {};
 }
 
@@ -217,21 +219,37 @@ PAGraph::KnnSearch(const DatasetPtr& query,
                    int64_t k,
                    const std::string& parameters,
                    const FilterPtr& filter) const {
+    // TODO: make it type check
+    auto search_param_json = JsonType::parse(parameters)["pagraph"];
+    int nprobe = search_param_json["nprobe"];
+    int ef_search = search_param_json["ef_search"];
+
     MaxHeap result(common_param_.allocator_.get());
+
     auto vl = pool_->TakeOne();
 
     InnerSearchParam search_param;
     search_param.ep = this->entry_point_;
-    search_param.ef = 200;
+    search_param.topk = nprobe;
+    search_param.ef = ef_search;
 
     auto graph_id_result = searcher_->Search(
         graph_, graph_flatten_codes_, vl, query->GetFloat32Vectors(), search_param);
 
     Vector<uint8_t> issue_data(allocator_);
+
     Vector<uint64_t> issue_sizes(allocator_);
+    issue_sizes.reserve(nprobe);
+
     Vector<uint64_t> issue_offsets(allocator_);
+    issue_offsets.reserve(nprobe);
+
     Vector<float> issue_dists(allocator_);
+    issue_dists.reserve(nprobe);
+
     Vector<InnerIdType> issue_bucket_inner_ids(allocator_);
+    issue_bucket_inner_ids.reserve(capacity_ * nprobe);
+
 
     uint64_t issue_count = 0, issue_data_size = 0;
 
@@ -241,22 +259,20 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         graph_id_result.pop();
         result.emplace(centroid_dist, inner_id);
         vl->Set(inner_id);
-        if (result.size() > k) result.pop();
 
         auto &bucket = buckets_->at(centroid_id);
         auto issue_size = bucket->size() * code_size_;
         if (issue_size == 0) continue;
 
-        issue_offsets[issue_count] = line_size_ * centroid_id;
-        issue_sizes[issue_count] = issue_size;
+        issue_offsets.emplace_back(line_size_ * centroid_id);
+        issue_sizes.emplace_back(issue_size);
         issue_data_size += issue_size;
         issue_bucket_inner_ids.insert(issue_bucket_inner_ids.end(), bucket->begin(), bucket->end());
-        // issue_bucket_inner_ids.emplace
         issue_count += 1;
     }
 
     // ByteBuffer codes(issue_data_size, allocator_);
-
+    issue_data.resize(issue_data_size);
     io_->MultiRead(issue_data.data(), issue_sizes.data(), issue_offsets.data(), issue_count);
 
 
@@ -271,10 +287,11 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         float d;
         computer->ComputeDist(codes, &d);
         result.emplace(d, bucket_inner_id);
-        if (result.size() > k) result.pop();
     }
 
     pool_->ReturnOne(vl);
+
+    while (result.size() > k) result.pop();
 
     // transform inner id --> outer label
     auto [dataset_result, dists, ids] = CreateFastDataset(k, allocator_);
@@ -312,6 +329,7 @@ PAGraph::Serialize(StreamWriter& writer) const {
 
     // Graph ids inner label table
     StreamWriter::WriteVector(writer, graph_ids_);
+    StreamWriter::WriteVector(writer, radii_);
     StreamWriter::WriteVector(writer, label_table_->label_table_);
 
 
@@ -356,6 +374,7 @@ PAGraph::Deserialize(StreamReader& reader) {
 
     // Graph ids
     StreamReader::ReadVector(reader, graph_ids_);
+    StreamReader::ReadVector(reader, radii_);
     StreamReader::ReadVector(reader, label_table_->label_table_);
 
     uint64_t label_size;
@@ -369,7 +388,9 @@ PAGraph::Deserialize(StreamReader& reader) {
     }
 
     // Graph
+    graph_flatten_codes_ = FlattenInterface::MakeInstance(graph_flatten_codes_param_, common_param_);
     graph_flatten_codes_->Deserialize(reader);
+    graph_ = GraphInterface::MakeInstance(graph_param_, common_param_);
     graph_->Deserialize(reader);
 
     // Bucket ids
@@ -379,6 +400,8 @@ PAGraph::Deserialize(StreamReader& reader) {
         StreamReader::ReadVector(reader, *bucket);
         buckets_->emplace_back(std::move(bucket));
     }
+    resize(num_elements_);
+
 }
 
 std::vector<int64_t>
@@ -428,7 +451,7 @@ void
 PAGraph::get_radius() {
     auto graph_size = graph_->TotalCount();
 
-    Vector<float> all_radius(graph_size, allocator_);
+    Vector<float> all_radius(allocator_);
     all_radius.reserve(graph_size);
 
 
@@ -473,6 +496,7 @@ PAGraph::aggregate_pag(const DatasetPtr &base) {
     graph_ids_set.insert(graph_ids_.begin(), graph_ids_.end());
 
     InnerSearchParam search_param;
+    search_param.topk = graph_->MaximumDegree();
     search_param.ep = entry_point_;
     search_param.ef = ef_;
     auto empty_mutex = std::make_shared<EmptyMutex>();
@@ -493,9 +517,11 @@ PAGraph::aggregate_pag(const DatasetPtr &base) {
         select_partition_by_heuristic(result);
 
         if (result.size() == 0) {
+            auto result_neighbors = result_copy;
             graph_flatten_codes_->InsertVector(q);
-            mutually_connect_new_element(i,
-                                         result_copy,
+            auto graph_id = graph_->TotalCount();
+            mutually_connect_new_element(graph_id,
+                                         result_neighbors,
                                          graph_,
                                          graph_flatten_codes_,
                                          empty_mutex,
@@ -546,14 +572,14 @@ PAGraph::select_partition_by_heuristic(MaxHeap& candidates) {
     // Density filter
     while (closest_queue.size() > 0) {
         auto [cur_dist, cur_graph_id] = closest_queue.top();
-        cur_dist = -cur_dist;
+        auto positive_cur_dist = cur_dist;
         closest_queue.pop();
 
         bool good = true;
 
         for (auto [pre_dist, pre_graph_id]: return_list) {
             auto dist_partition = graph_flatten_codes_->ComputePairVectors(cur_graph_id, pre_graph_id);
-            if (dist_partition < cur_dist) {
+            if (dist_partition < positive_cur_dist) {
                 good = false;
                 break;
             }
@@ -566,7 +592,7 @@ PAGraph::select_partition_by_heuristic(MaxHeap& candidates) {
     }
 
     for (auto [dist, label]: return_list) {
-        candidates.emplace(dist, label);
+        candidates.emplace(-dist, label);
     }
 }
 
@@ -655,11 +681,11 @@ next_multiple_of_power_of_two(uint64_t x, uint64_t n) {
 void
 PAGraph::resize(uint64_t new_size) {
     auto cur_size = this->max_capacity_;
-    new_size = next_multiple_of_power_of_two(new_size, resize_increase_count_bit_);
+    // new_size = next_multiple_of_power_of_two(new_size, resize_increase_count_bit_);
     if (cur_size < new_size) {
         graph_ids_.resize(new_size);
-        if (graph_)
-            graph_->Resize(new_size);
+        // if (graph_)
+        //     graph_->Resize(new_size);
         radii_.resize(new_size);
         buckets_->resize(new_size);
         pool_ = std::make_unique<VisitedListPool>(

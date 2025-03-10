@@ -16,13 +16,14 @@
 #include <vsag/vsag.h>
 
 #include <iostream>
+#include <fstream>
 
 int
 main(int argc, char** argv) {
     vsag::init();
 
     /******************* Prepare Base Dataset *****************/
-    int64_t num_vectors = 10000;
+    int64_t num_vectors = 1000;
     int64_t dim = 128;
     std::vector<int64_t> ids(num_vectors);
     std::vector<float> datas(num_vectors * dim);
@@ -56,7 +57,7 @@ main(int argc, char** argv) {
     vsag::Engine engine;
     auto index = engine.CreateIndex("pagraph", pagraph_build_parameters).value();
 
-    /******************* Build HGraph Index *****************/
+    /******************* Build PAGraph Index *****************/
     if (auto build_result = index->Build(base); build_result.has_value()) {
         std::cout << "After Build(), Index PAGraph contains: " << index->GetNumElements()
                   << std::endl;
@@ -73,16 +74,55 @@ main(int argc, char** argv) {
     auto query = vsag::Dataset::Make();
     query->NumElements(1)->Dim(dim)->Float32Vectors(query_vector.data())->Owner(false);
 
-    /******************* KnnSearch For HGraph Index *****************/
+    /******************* KnnSearch For PAGraph Index *****************/
     auto pagraph_search_parameters = R"(
     {
         "pagraph": {
-            "ef_search": 100
+            "ef_search": 100,
+            "nprobe": 40
         }
     }
     )";
     int64_t topk = 10;
     auto result = index->KnnSearch(query, topk, pagraph_search_parameters).value();
+
+    /******************* Print Search Result *****************/
+    std::cout << "results: " << std::endl;
+    for (int64_t i = 0; i < result->GetDim(); ++i) {
+        std::cout << result->GetIds()[i] << ": " << result->GetDistances()[i] << std::endl;
+    }
+
+
+    /****************** Serialize and Deserialize PAGraph ****************/
+    std::unordered_map<std::string, size_t> meta_info;
+    {
+        if(auto bs = index->Serialize(); bs.has_value()) {
+            index = nullptr;
+            auto keys = bs->GetKeys();
+            for (auto key : keys) {
+                vsag::Binary b = bs->Get(key);
+                std::ofstream file("pag.index." + key, std::ios::binary);
+                file.write((const char*)b.data.get(), b.size);
+                file.close();
+                meta_info[key] = b.size;
+            }
+        }
+    }
+
+    {
+        vsag::ReaderSet rs;
+        for (const auto& [key, size] : meta_info) {
+            auto reader =
+                vsag::Factory::CreateLocalFileReader("pag.index." + key, 0, size);
+            rs.Set(key, reader);
+        }
+
+        index = engine.CreateIndex("pagraph", pagraph_build_parameters).value();
+        index->Deserialize(rs);
+    }
+
+    /*************Rerun the search**************/
+    result = index->KnnSearch(query, topk, pagraph_search_parameters).value();
 
     /******************* Print Search Result *****************/
     std::cout << "results: " << std::endl;
