@@ -106,6 +106,19 @@ private:
     void
     resize(uint64_t new_size);
 
+    void
+    clear_statistic() {
+        io_total_count_ = 0;
+        io_total_size_ = 0;
+        query_count_ = 0;
+    }
+
+public:
+    mutable  uint64_t io_total_count_ = 0;
+    mutable  uint64_t io_total_size_ = 0; // in bytes
+    mutable  uint64_t query_count_ = 0;
+    mutable  uint64_t cmp_count_ = 0; // dist cmp times
+
 private:
     IndexCommonParam common_param_;
     // PAGraphParameter pag_param_;

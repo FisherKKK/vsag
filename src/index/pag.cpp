@@ -50,6 +50,8 @@ PAGraph::PAGraph(const PAGraphParameterPtr& pag_param, const IndexCommonParam& c
     io_ = std::make_unique<AsyncIO>(bucket_file_, common_param.allocator_.get()); // TODO: for async io
     quantizer_ = std::make_unique<FP32Quantizer<MetricType::METRIC_TYPE_L2SQR>>(
         common_param.dim_, common_param.allocator_.get()); // TODO: quantizer for bucket calculation
+
+    clear_statistic();
 }
 
 std::vector<int64_t>
@@ -220,6 +222,11 @@ PAGraph::KnnSearch(const DatasetPtr& query,
                    const std::string& parameters,
                    const FilterPtr& filter) const {
     // TODO: make it type check
+    CHECK_ARGUMENT(query->GetNumElements() == 1, "query dataset should contain 1 vector only");
+
+    // IO-related stat
+    query_count_ += 1;
+
     auto search_param_json = JsonType::parse(parameters)["pagraph"];
     int nprobe = search_param_json["nprobe"];
     int ef_search = search_param_json["ef_search"];
@@ -275,6 +282,10 @@ PAGraph::KnnSearch(const DatasetPtr& query,
     issue_data.resize(issue_data_size);
     io_->MultiRead(issue_data.data(), issue_sizes.data(), issue_offsets.data(), issue_count);
 
+    // IO-related
+    io_total_count_ += issue_count;
+    io_total_size_ += issue_data_size;
+
 
     auto computer = quantizer_->FactoryComputer();
     computer->SetQuery(query->GetFloat32Vectors());
@@ -288,6 +299,9 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         computer->ComputeDist(codes, &d);
         result.emplace(d, bucket_inner_id);
     }
+
+    // IO-Related
+    cmp_count_ += issue_bucket_inner_ids.size();
 
     pool_->ReturnOne(vl);
 
@@ -606,24 +620,24 @@ PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_cap
     if (dr_ratio < 0.5f) {
         dr_factor = 1.f;
     } else if (dr_ratio < 1.0f) {
-        dr_factor = 0.9f;
+        dr_factor = 0.95f;
     } else if (dr_ratio < 2.0f) {
-        dr_factor = 0.8f;
+        dr_factor = 0.85f;
     } else if (dr_ratio < 3.0f) {
         dr_factor = 0.5f;
     } else {
-        dr_factor = 0.4f;
+        dr_factor = 0.2f;
     }
 
     float bucket_factor;
     if (bucket_ratio <= 0.0f) {
         bucket_factor = 1.0f;
     } else if (bucket_ratio <= 0.5f) {
-        bucket_factor = 0.95f;
+        bucket_factor = 0.9f;
     } else if (bucket_ratio <= 0.8f) {
-        bucket_factor = 0.8f;
+        bucket_factor = 0.5f;
     } else {
-        bucket_factor = 0.4f;
+        bucket_factor = 0.2f;
     }
 
     return dr_factor * bucket_factor;
@@ -632,8 +646,6 @@ PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_cap
 InnerIdType
 PAGraph::calculate_new_centroid(const Vector<InnerIdType> &members, const DatasetPtr &base) {
     const float *base_vecs = base->GetFloat32Vectors();
-
-
     Vector<float> sum(allocator_);
     sum.resize(dim_, 0.f);
     for (auto mem: members) {
@@ -709,7 +721,7 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
             "init_capacity": 100
         },
         "odescent": {
-            "max_degree": 32,
+            "max_degree": 12,
             "alpha": 1,
             "graph_iter_turn": 10,
             "neighbor_sample_rate": 0.5,

@@ -45,7 +45,7 @@ const static std::string META_DATA_FILE = "_meta.data";
 
 int
 main(int argc, char* argv[]) {
-    set_level(level::off);
+    set_level(level::debug);
     if (argc != 6) {
         std::cerr << "Usage: " << argv[0]
                   << " <dataset_file_path> <process> <index_name> <build_param> <search_param>"
