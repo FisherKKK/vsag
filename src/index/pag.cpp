@@ -741,7 +741,7 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
 
 
 ParamPtr
-PAGraph::MappingExternalParamAndCheck(const JsonType& external_param,
+PAGraph::CheckAndMappingExternalParam(const JsonType& external_param,
                                       const IndexCommonParam& common_param) {
     std::string default_param_str = format_map(PAGRAPH_PARAMS_TEMPLATE, DEFAULT_MAP);
     auto param_json = JsonType::parse(default_param_str);

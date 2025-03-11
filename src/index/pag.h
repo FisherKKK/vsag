@@ -33,7 +33,7 @@ namespace vsag {
 class PAGraph : public InnerIndexInterface {
 public:
     static ParamPtr
-    MappingExternalParamAndCheck(const JsonType &external_param,
+    CheckAndMappingExternalParam(const JsonType &external_param,
                                  const IndexCommonParam &common_param);
 
     using InnerIdBucket = Vector<std::unique_ptr<Vector<InnerIdType>>>;
@@ -75,6 +75,14 @@ public:
     [[nodiscard]] int64_t
     GetNumElements() const override;
 
+    void
+    InitFeatures() override {
+        return;
+    }
+
+    int64_t GetMemoryUsage() const override {
+        return 0;
+    }
 
 private:
     Vector<InnerIdType>
