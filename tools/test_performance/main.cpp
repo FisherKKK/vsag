@@ -32,6 +32,7 @@ using namespace nlohmann;
 using namespace spdlog;
 using namespace vsag;
 using namespace vsag::eval;
+// #define ODEBUG
 
 json
 run_test(const std::string& index_name,
@@ -40,8 +41,8 @@ run_test(const std::string& index_name,
          const std::string& search_parameters,
          const std::string& dataset_path);
 
-const static std::string DIR_NAME = "/tmp/test_performance/";
-const static std::string META_DATA_FILE = "_meta.data";
+const static std::string DIR_NAME = "/tmp/test_diskann_gist/";
+const static std::string META_DATA_FILE = "diskann_meta.data";
 
 int
 main(int argc, char* argv[]) {
@@ -106,14 +107,27 @@ public:
         auto eval_dataset = EvalDataset::Load(dataset_path);
 
         // build
+#ifdef ODEBUG
+        int64_t total_base = eval_dataset->GetNumberOfQuery();
+#else
         int64_t total_base = eval_dataset->GetNumberOfBase();
+#endif
         auto ids = range(total_base);
         auto base = Dataset::Make();
         base->NumElements(total_base)->Dim(eval_dataset->GetDim())->Ids(ids.get())->Owner(false);
         if (eval_dataset->GetTrainDataType() == vsag::DATATYPE_FLOAT32) {
+#ifdef ODEBUG
+            base->Float32Vectors((const float*)eval_dataset->GetTest());
+#else
             base->Float32Vectors((const float*)eval_dataset->GetTrain());
+#endif
         } else if (eval_dataset->GetTrainDataType() == vsag::DATATYPE_INT8) {
+#ifdef ODEBUG
+            base->Int8Vectors((const int8_t*)eval_dataset->GetTest());
+#else
             base->Int8Vectors((const int8_t*)eval_dataset->GetTrain());
+#endif
+
         }
         auto build_start = std::chrono::steady_clock::now();
         if (auto buildindex = index->Build(base); not buildindex.has_value()) {

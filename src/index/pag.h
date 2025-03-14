@@ -13,18 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "algorithm/inner_index_interface.h"
-#include "data_cell/graph_interface.h"
-#include "parameter.h"
-#include "quantization/fp32_quantizer.h"
-
 #include <memory>
 #include <random>
+#include <iostream>
+#include <data_cell/flatten_datacell.h>
 
+#include "algorithm/inner_index_interface.h"
+#include "data_cell/graph_interface.h"
 #include "impl/basic_searcher.h"
 #include "index_common_param.h"
 #include "io/async_io.h"
 #include "pag_zparameters.h"
+#include "parameter.h"
+#include "quantization/fp32_quantizer.h"
 #include "typing.h"
 #include "vsag/index.h"
 
@@ -33,20 +34,27 @@ namespace vsag {
 class PAGraph : public InnerIndexInterface {
 public:
     static ParamPtr
-    CheckAndMappingExternalParam(const JsonType &external_param,
-                                 const IndexCommonParam &common_param);
+    CheckAndMappingExternalParam(const JsonType& external_param,
+                                 const IndexCommonParam& common_param);
 
     using InnerIdBucket = Vector<std::unique_ptr<Vector<InnerIdType>>>;
     using InnerIdBucketPtr = std::shared_ptr<InnerIdBucket>;
 
-    PAGraph(const PAGraphParameterPtr &pag_param, const IndexCommonParam& common_param);
+    PAGraph(const PAGraphParameterPtr& pag_param, const IndexCommonParam& common_param);
 
-    PAGraph(const ParamPtr &param, const IndexCommonParam& common_param)
-        : PAGraph(std::dynamic_pointer_cast<PAGraphParameter>(param), common_param) {}
+    PAGraph(const ParamPtr& param, const IndexCommonParam& common_param)
+        : PAGraph(std::dynamic_pointer_cast<PAGraphParameter>(param), common_param) {
+    }
 
-    ~PAGraph() override = default;
+    ~PAGraph() override {
+        std::cout << "#query number: " << query_count_
+                  << ", #io count: " << io_total_count_
+                  << ", #io size: " << io_total_size_ / (1024 * 1024)
+                  << "MB" << ", #bucket vec cal number: " << cmp_count_ << std::endl;
+    };
 
-    std::vector<int64_t> Build(const DatasetPtr &base) override;
+    std::vector<int64_t>
+    Build(const DatasetPtr& base) override;
 
     [[nodiscard]] std::string
     GetName() const override;
@@ -80,7 +88,8 @@ public:
         return;
     }
 
-    int64_t GetMemoryUsage() const override {
+    int64_t
+    GetMemoryUsage() const override {
         return 0;
     }
 
@@ -92,7 +101,7 @@ private:
     get_radius();
 
     void
-    aggregate_pag(const DatasetPtr &base);
+    aggregate_pag(const DatasetPtr& base);
 
     void
     select_partition_by_heuristic(MaxHeap& candidates);
@@ -113,11 +122,23 @@ private:
         query_count_ = 0;
     }
 
+    void
+    parallelize_task(const std::function<void(int64_t, int64_t)>& task, int64_t total_num) {
+        Vector<std::future<void>> futures(allocator_);
+        for (int64_t i = 0; i < total_num; i += thread_block_size_) {
+            int64_t end = std::min(i + thread_block_size_, total_num);
+            futures.push_back(thread_pool_->GeneralEnqueue(task, i, end));
+        }
+        for (auto& future : futures) {
+            future.get();
+        }
+    }
+
 public:
-    mutable  uint64_t io_total_count_ = 0;
-    mutable  uint64_t io_total_size_ = 0; // in bytes
-    mutable  uint64_t query_count_ = 0;
-    mutable  uint64_t cmp_count_ = 0; // dist cmp times
+    mutable uint64_t io_total_count_ = 0;
+    mutable uint64_t io_total_size_ = 0;  // in bytes
+    mutable uint64_t query_count_ = 0;
+    mutable uint64_t cmp_count_ = 0;  // dist cmp times
 
 private:
     IndexCommonParam common_param_;
@@ -133,7 +154,7 @@ private:
     float start_decay_rate_{.8f};
     uint64_t num_sample_{0};
     uint64_t ef_{200};
-    std::string bucket_file_{"buckets.bin"};
+    std::string bucket_file_{"/tmp/buckets.bin"};
 
     uint64_t line_size_{0};
     uint64_t code_size_{0};
@@ -155,11 +176,11 @@ private:
     GraphInterfaceParamPtr graph_param_;
     ODescentParameterPtr odescent_param_;
 
-
-
     InnerIdBucketPtr buckets_{nullptr};
 
     std::unique_ptr<VisitedListPool> pool_{nullptr};
+
+    std::shared_ptr<SafeThreadPool> thread_pool_{nullptr};
 
     std::unique_ptr<BasicSearcher> searcher_{nullptr};
 
@@ -167,19 +188,29 @@ private:
 
     std::unique_ptr<Quantizer<FP32Quantizer<>>> quantizer_;
 
+
+    FlattenDataCellParamPtr low_precision_graph_flatten_codes_param_;
+    FlattenInterfacePtr low_precision_graph_flatten_codes_{nullptr};
+
+
+
+    bool use_quantization_{false};
     const uint64_t resize_increase_count_bit_{10};
+    const int64_t thread_block_size_{800};
+    const float recal_threshold_{0.1};
+
+    // Vector<std::mutex> buckets_mutex_;
+    // std::shared_mutex bucket_mutex_;
+    // std::shared_mutex graph_mutex_;
 
     // FlattenInterfacePtr flatten_interface_ptr_{nullptr};
     // BucketInterfacePtr bucket_interface_ptr_{nullptr};
     // Vector<InnerIdType> inner_ids_;
     // LabelTable labels_;
 
-
-
     // UnorderedMap<InnerIdType, std::unique_ptr<Vector<InnerIdType>>> bucket_;
     // std::unique_ptr<BasicIO<AsyncIO>> io;
 };
-
 
 // class PGraphIndex : public Index {
 //     PGraphIndex(const PGraphIndexParameter& param, const IndexCommonParam& common_param);

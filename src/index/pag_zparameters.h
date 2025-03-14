@@ -18,7 +18,6 @@
 #include "data_cell/flatten_datacell_parameter.h"
 #include "data_cell/graph_interface_parameter.h"
 #include "impl/odescent_graph_parameter.h"
-
 #include "index_common_param.h"
 #include "parameter.h"
 
@@ -35,6 +34,8 @@ public:
     GraphInterfaceParamPtr graph_param_{nullptr};
     FlattenDataCellParamPtr graph_flatten_codes_param_{nullptr};
     ODescentParameterPtr odescent_param_{nullptr};
+    bool use_quantization_{false};
+    FlattenDataCellParamPtr low_precision_graph_flatten_codes_param_{nullptr};
     uint64_t num_iter_{1};
     uint64_t replicas_{4};
     uint64_t capacity_{0};

@@ -19,7 +19,6 @@
 
 namespace vsag {
 
-
 static const std::string PAGRAPH_PARAMS_TEMPLATE =
     R"(
     {
@@ -60,7 +59,7 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
 void
 PAGraphParameter::FromJson(const JsonType& json) {
     // Build parameter
-    const auto &build_param_json = json[BUILD_PARAMS_KEY];
+    const auto& build_param_json = json[BUILD_PARAMS_KEY];
     this->sample_rate_ = build_param_json["sample_rate"];
     this->start_decay_rate_ = build_param_json["start_decay_rate"];
     this->capacity_ = build_param_json["capacity"];
@@ -68,20 +67,28 @@ PAGraphParameter::FromJson(const JsonType& json) {
     this->replicas_ = build_param_json["replicas"];
     this->fine_radius_rate_ = build_param_json["fine_radius_rate"];
     this->coarse_radius_rate_ = build_param_json["coarse_radius_rate"];
+    this->ef_ = build_param_json["ef"];
+    this->use_quantization_ = build_param_json["use_quantization"];
 
     // Graph flatten codes parameter
-    const auto &graph_codes_json = json["base_codes"];
+    const auto& graph_codes_json = json["base_codes"];
     this->graph_flatten_codes_param_ = std::make_shared<FlattenDataCellParameter>();
     this->graph_flatten_codes_param_->FromJson(graph_codes_json);
 
     // Graph parameter
-    const auto &graph_json = json["graph"];
+    const auto& graph_json = json["graph"];
     this->graph_param_ = GraphInterfaceParameter::GetGraphParameterByJson(graph_json);
 
     // ODescent parameter
-    const auto &odescent = json["odescent"];
+    const auto& odescent = json["odescent"];
     this->odescent_param_ = std::make_shared<ODescentParameter>();
     this->odescent_param_->FromJson(odescent);
+
+    // Low precision
+    if (this->use_quantization_) {
+        low_precision_graph_flatten_codes_param_ = std::make_shared<FlattenDataCellParameter>();
+        low_precision_graph_flatten_codes_param_->FromJson(json["quantization_codes"]);
+    }
 }
 
 JsonType
@@ -103,6 +110,4 @@ PAGraphParameter::ToJson() {
     return json;
 }
 
-
-
-}
+}  // namespace vsag

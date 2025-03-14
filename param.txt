@@ -1,0 +1,210 @@
+./build/tools/test_performance/test_performance \
+'/home/dataset/sift/sift-128-euclidean.hdf5' \
+'build' \
+	'diskann' \
+	'{"dim": 128, "dtype": "float32", "metric_type": "l2", "hnsw": {"max_degree": 12, "ef_construction": 100}, "diskann": {"max_degree": 12, "ef_construction": 100, "pq_dims": 64, "pq_sample_rate": 0.1}}' \
+	'{"hnsw":{"ef_search":100},"diskann":{"ef_search":100,"beam_search":4,"io_limit":200,"use_reorder":true}}'
+
+
+./build/tools/test_performance/test_performance \
+'/home/dataset/sift/sift-128-euclidean.hdf5' \
+'search:10' \
+'diskann' \
+'{"dim": 128, "dtype": "float32", "metric_type": "l2", "hnsw": {"max_degree": 12, "ef_construction": 100}, "diskann": {"max_degree": 12, "ef_construction": 100, "pq_dims": 64, "pq_sample_rate": 0.1}}' \
+'{"hnsw":{"ef_search":100},"diskann":{"ef_search":200,"beam_search":4,"io_limit":200,"use_reorder":true}}'
+
+
+./build/tools/test_performance/test_performance \
+'/home/dataset/sift/sift-128-euclidean.hdf5' \
+'build' \
+	'pagraph' \
+	'{"dim": 128, "dtype": "float32", "metric_type": "l2", "hnsw": {"max_degree": 12, "ef_construction": 100}, "diskann": {"max_degree": 12, "ef_construction": 100, "pq_dims": 64, "pq_sample_rate": 0.1}, "pagraph": {}}' \
+	'{"hnsw":{"ef_search":100},"diskann":{"ef_search":100,"beam_search":4,"io_limit":200,"use_reorder":true}}'
+
+./build/tools/test_performance/test_performance \
+'/home/dataset/sift/sift-128-euclidean.hdf5' \
+'search:10' \
+'pagraph' \
+'{"dim": 128, "dtype": "float32", "metric_type": "l2", "hnsw": {"max_degree": 12, "ef_construction": 100}, "diskann": {"max_degree": 12, "ef_construction": 100, "pq_dims": 64, "pq_sample_rate": 0.1}}' \
+'{"hnsw":{"ef_search":100},"diskann":{"ef_search":200,"beam_search":4,"io_limit":200,"use_reorder":true}, "pagraph": {"nprobe": 100, "ef_search": 50}}'
+
+
+/home/dataset/sift/sift-128-euclidean.hdf5
+build
+pagraph
+"{\"dim\": 128, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"hnsw\": {\"max_degree\": 12, \"ef_construction\": 100}, \"diskann\": {\"max_degree\": 12, \"ef_construction\": 100, \"pq_dims\": 64, \"pq_sample_rate\": 0.1}, \"pagraph\": {}}"
+"{\"hnsw\":{\"ef_search\":100},\"diskann\":{\"ef_search\":100,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}}"
+
+/home/dataset/sift/sift-128-euclidean.hdf5
+search
+diskann
+"{\"dim\": 128, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"hnsw\": {\"max_degree\": 12, \"ef_construction\": 100}, \"diskann\": {\"use_async_io\": true, \"max_degree\": 12, \"ef_construction\": 100, \"pq_dims\": 64, \"pq_sample_rate\": 0.1}, \"pagraph\": {}}"
+"{\"hnsw\":{\"ef_search\":100},\"diskann\":{\"ef_search\":100,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}, \"pagraph\": {\"nprobe\": 10, \"ef_search\": 100}}"
+
+
+最优的参数:
+    R"(
+    {
+        "type": "pagraph",
+        "graph": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "max_degree": 16,
+            "init_capacity": 100
+        },
+        "odescent": {
+            "max_degree": 16,
+            "alpha": 1.2,
+            "graph_iter_turn": 30,
+            "neighbor_sample_rate": 0.3,
+            "min_in_degree": 4,
+            "build_block_size": 100
+        },
+        "base_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "fp32",
+                "use_quantization": false
+            }
+        },
+        "build_params": {
+            "build_thread_count": 100,
+            "sample_rate": 0.2,
+            "start_decay_rate": 0.9,
+            "capacity": 48,
+            "num_iter": 1,
+            "replicas": 4,
+            "fine_radius_rate": 0.2,
+            "coarse_radius_rate": 0.5,
+            "ef": 200
+        }
+    })";
+
+
+    float dr_factor;
+        if (dr_ratio < 0.5f) {
+            dr_factor = 1.f;
+        } else if (dr_ratio < 1.0f) {
+            dr_factor = 0.8f;
+        } else if (dr_ratio < 2.0f) {
+            dr_factor = 0.6f;
+        } else if (dr_ratio < 3.0f) {
+            dr_factor = 0.5f;
+        } else {
+            dr_factor = 0.1f;
+        }
+
+        float bucket_factor;
+        if (bucket_ratio <= 0.0f) {
+            bucket_factor = 1.0f;
+        } else if (bucket_ratio <= 0.5f) {
+            bucket_factor = 0.95f;
+        } else if (bucket_ratio <= 0.8f) {
+            bucket_factor = 0.9f;
+        } else {
+            bucket_factor = 0.2f;
+        }
+
+
+ \"diskann\": {
+             \"max_degree\": 16,
+             \"ef_construction\": 200,
+             \"pq_sample_rate\": 0.5,
+             \"pq_dims\": 9,
+             \"use_pq_search\": true,
+             \"use_async_io\": true,
+             \"use_bsa\": false
+         }
+
+# 最新的参数
+/home/dataset/sift/sift-128-euclidean.hdf5
+search:10
+pagraph
+"{\"dim\": 128, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"hnsw\": {\"max_degree\": 12, \"ef_construction\": 100}, \"diskann\": {\"max_degree\": 12, \"ef_construction\": 100, \"pq_dims\": 64, \"pq_sample_rate\": 0.1}, \"pagraph\": {}}"
+"{\"hnsw\":{\"ef_search\":100},\"diskann\":{\"ef_search\":100,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}, \"pagraph\": {\"nprobe\": 1280, \"ef_search\": 1280}}"
+
+/home/dataset/sift/sift-128-euclidean.hdf5
+search:10
+diskann
+"{\"dim\": 128, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"diskann\": {\"max_degree\": 16, \"ef_construction\": 200, \"pq_sample_rate\": 0.5, \"pq_dims\": 32, \"use_pq_search\": true, \"use_async_io\": true, \"use_bsa\": false}}"
+"{\"diskann\":{\"ef_search\":512,\"beam_search\":4,\"io_limit\":512,\"use_reorder\":true}}"
+
+
+自适应压缩
+R"(
+    {
+        "type": "pagraph",
+        "graph": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "max_degree": 16,
+            "init_capacity": 100
+        },
+        "odescent": {
+            "max_degree": 16,
+            "alpha": 1.2,
+            "graph_iter_turn": 30,
+            "neighbor_sample_rate": 0.3,
+            "min_in_degree": 4,
+            "build_block_size": 100
+        },
+        "base_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "fp32",
+                "use_quantization": "false"
+            }
+        },
+        "quantization_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path_qt"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "sq8_uniform"
+            }
+        },
+        "build_params": {
+            "build_thread_count": 100,
+            "sample_rate": 0.8,
+            "start_decay_rate": 0.25,
+            "capacity": 24,
+            "num_iter": 1,
+            "replicas": 4,
+            "fine_radius_rate": 0.5,
+            "coarse_radius_rate": 0.5,
+            "ef": 200,
+            "use_quantization": true
+        }
+    })";
+
+
+
+    # GIST
+    PAG
+    /home/dataset/gist/gist-960-euclidean.hdf5
+    build
+    pagraph
+    "{\"dim\": 960, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"hnsw\": {\"max_degree\": 12, \"ef_construction\": 100}, \"diskann\": {\"max_degree\": 12, \"ef_construction\": 100, \"pq_dims\": 64, \"pq_sample_rate\": 0.1}, \"pagraph\": {}}"
+    "{\"hnsw\":{\"ef_search\":100},\"diskann\":{\"ef_search\":100,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}, \"pagraph\": {\"nprobe\": 100, \"ef_search\": 400}}"
+
+
+    DiskANN
+    /home/dataset/gist/gist-960-euclidean.hdf5
+    build
+    diskann
+    "{\"dim\": 960, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"diskann\": {\"max_degree\": 32, \"ef_construction\": 200, \"pq_sample_rate\": 0.5, \"pq_dims\": 512, \"use_pq_search\": true, \"use_async_io\": true, \"use_bsa\": false}}"
+    "{\"diskann\":{\"ef_search\":512,\"beam_search\":4,\"io_limit\":512,\"use_reorder\":true}}"

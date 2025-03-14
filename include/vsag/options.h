@@ -155,7 +155,7 @@ private:
     std::atomic<size_t> num_threads_io_{8};
 
     ///< The number of threads used for building a single index.
-    std::atomic<size_t> num_threads_building_{4};
+    std::atomic<size_t> num_threads_building_{64};
 
     ///< The size of the maximum memory allocated each time (default is 128MB).
     std::atomic<size_t> block_size_limit_{128 * 1024 * 1024};
