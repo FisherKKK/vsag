@@ -16,6 +16,9 @@ target_link_libraries (105_index_brute_force vsag_static)
 add_executable (106_index_pag 106_index_pag.cpp)
 target_link_libraries (106_index_pag vsag_static)
 
+add_executable (107_index_graph_union 107_index_graph_union.cpp)
+target_link_libraries (107_index_graph_union vsag_static)
+
 add_executable (201_custom_allocator 201_custom_allocator.cpp)
 target_link_libraries (201_custom_allocator vsag)
 
