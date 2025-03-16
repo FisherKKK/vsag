@@ -44,6 +44,7 @@ public:
     float fine_radius_rate_{.5f};
     float coarse_radius_rate_{.5f};
     uint64_t ef_{200};
+    std::string bucket_file_{"/tmp/buckets.bin"};
 };
 
 using PAGraphParameterPtr = std::shared_ptr<PAGraphParameter>;

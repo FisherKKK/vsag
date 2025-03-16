@@ -15,6 +15,8 @@
 
 #include "pag.h"
 
+#include "vsag/factory.h"
+
 #include <memory>
 
 #include "impl/odescent_graph_builder.h"
@@ -37,6 +39,7 @@ PAGraph::PAGraph(const PAGraphParameterPtr& pag_param, const IndexCommonParam& c
       sample_rate_(pag_param->sample_rate_),
       start_decay_rate_(pag_param->start_decay_rate_),
       ef_(pag_param->ef_),
+      bucket_file_(pag_param->bucket_file_),
       fine_radius_rate_(pag_param->fine_radius_rate_),
       coarse_radius_rate_(pag_param->coarse_radius_rate_),
       graph_ids_(common_param.allocator_.get()),
@@ -52,8 +55,26 @@ PAGraph::PAGraph(const PAGraphParameterPtr& pag_param, const IndexCommonParam& c
     pool_ = std::make_unique<VisitedListPool>(
         1, common_param.allocator_.get(), max_capacity_, common_param_.allocator_.get());
     searcher_ = std::make_unique<BasicSearcher>(common_param_);
-    io_ = std::make_unique<AsyncIO>(bucket_file_,
-                                    common_param.allocator_.get());  // TODO: for async io
+    // io_ = std::make_unique<AsyncIO>(bucket_file_,
+    //                                 common_param.allocator_.get());  // TODO: for async io
+    int64_t file_size = 0;
+
+    // {
+    //     std::ifstream fin(bucket_file_, std::ios::binary | std::ios::in);
+    //     fin.seekg(0, std::ios::end);
+    //     file_size = static_cast<int64_t>(fin.tellg());
+    //     std::cout << "Bucket bin size: " << file_size << "B" << std::endl;
+    //     fin.close();
+    // }
+
+    disk_reader_ = Factory::CreateLocalFileReader(bucket_file_, 0, file_size);
+    batch_read_ = [&](uint64_t offset,
+                      uint64_t size,
+                      void *dest,
+                      const CallBack& callback) -> void {
+        disk_reader_->AsyncRead(offset, size, dest, callback);
+    };
+
     quantizer_ = std::make_unique<FP32Quantizer<MetricType::METRIC_TYPE_L2SQR>>(
         common_param.dim_,
         common_param.allocator_.get());  // TODO: quantizer for bucket calculation
@@ -274,19 +295,23 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         flatten_codes = low_precision_graph_flatten_codes_;
     }
 
+    // Vector<AlignedRead> sorted_read_reqs(allocator_);
     auto graph_id_result = searcher_->Search(
         graph_, flatten_codes, vl, query->GetFloat32Vectors(), search_param);
 
+
+    // sorted_read_reqs.reserve(graph_id_result.size());
     Vector<uint8_t> issue_data(allocator_);
+    issue_data.resize(line_size_ * graph_id_result.size());
 
-    Vector<uint64_t> issue_sizes(allocator_);
-    issue_sizes.reserve(nprobe);
+    // Vector<uint64_t> issue_sizes(allocator_);
+    // issue_sizes.reserve(nprobe);
 
-    Vector<uint64_t> issue_offsets(allocator_);
-    issue_offsets.reserve(nprobe);
+    // Vector<uint64_t> issue_offsets(allocator_);
+    // issue_offsets.reserve(nprobe);
 
-    Vector<float> issue_dists(allocator_);
-    issue_dists.reserve(nprobe);
+    // Vector<float> issue_dists(allocator_);
+    // issue_dists.reserve(nprobe);
 
     Vector<InnerIdType> issue_bucket_inner_ids(allocator_);
     issue_bucket_inner_ids.reserve(capacity_ * nprobe);
@@ -311,7 +336,15 @@ PAGraph::KnnSearch(const DatasetPtr& query,
     }
 #endif
 
+    // Vector<std::future<bool>> futures(allocator_);
+    // Vector<std::promise<bool>> promises(allocator_);
 
+
+    Deque<std::pair<uint8_t*, InnerIdType>> completion_queue(allocator_);
+
+    std::mutex mutex;
+    std::condition_variable cv;
+    int64_t issue_data_off = 0;
 
     while (graph_id_result.size() > 0) {
         auto [centroid_dist, centroid_id] = graph_id_result.top();
@@ -324,40 +357,99 @@ PAGraph::KnnSearch(const DatasetPtr& query,
 
         auto& bucket = buckets_->at(centroid_id);
         auto issue_size = bucket->size() * code_size_;
+        auto offset = line_size_ * centroid_id;
         if (issue_size == 0)
             continue;
 
-        issue_offsets.emplace_back(line_size_ * centroid_id);
-        issue_sizes.emplace_back(issue_size);
+
+        auto dest = issue_data.data() + issue_data_off;
+        issue_data_off += issue_size;
+
+
+        auto callback = [&, dest, centroid_id](vsag::IOErrorCode code, const std::string& message) {
+            std::unique_lock<std::mutex> lock(mutex);
+            completion_queue.emplace_back(dest, centroid_id);
+            cv.notify_all();
+        };
+
+        batch_read_(offset, issue_size, dest, callback);
+
+        // sorted_read_reqs.emplace_back(offset, issue_size, issue_data.data() + issue_data_off);
+
+        // issue_offsets.emplace_back(line_size_ * centroid_id);
+        // issue_sizes.emplace_back(issue_size);
         issue_data_size += issue_size;
-        issue_bucket_inner_ids.insert(issue_bucket_inner_ids.end(), bucket->begin(), bucket->end());
+        // issue_bucket_inner_ids.insert(issue_bucket_inner_ids.end(), bucket->begin(), bucket->end());
         issue_count += 1;
     }
 
+
+    auto computer = quantizer_->FactoryComputer();
+    computer->SetQuery(query->GetFloat32Vectors());
+
+    for (uint64_t i = 0; i < issue_count; i++) {
+        std::pair<uint8_t*, InnerIdType> element;
+
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            cv.wait(lock, [&] { return !completion_queue.empty(); });
+            element = completion_queue.front();
+            completion_queue.pop_front();
+        }
+
+        const uint8_t* vecs = element.first;
+        auto &bucket = *(buckets_->at(element.second));
+
+        for (int j = 0; j < bucket.size(); j++) {
+            const uint8_t* codes = vecs + j * code_size_;
+            auto bucket_inner_id = bucket[j];
+            if (vl->Get(bucket_inner_id))
+                continue;
+            vl->Set(bucket_inner_id);
+            float d;
+            computer->ComputeDist(codes, &d);
+            result.emplace(d, bucket_inner_id);
+        }
+        cmp_count_ += bucket.size();
+    }
+
+
+
+
+
+
+
+
+
+
+
+
     // ByteBuffer issue_data(issue_data_size, allocator_);
-    issue_data.resize(issue_data_size);
-    io_->MultiRead(issue_data.data(), issue_sizes.data(), issue_offsets.data(), issue_count);
+    // issue_data.resize(issue_data_size);
+
+
+    // io_->MultiRead(issue_data.data(), issue_sizes.data(), issue_offsets.data(), issue_count);
 
     // IO-related
     io_total_count_ += issue_count;
     io_total_size_ += issue_data_size;
 
-    auto computer = quantizer_->FactoryComputer();
-    computer->SetQuery(query->GetFloat32Vectors());
-
-    for (int i = 0; i < issue_bucket_inner_ids.size(); i++) {
-        auto bucket_inner_id = issue_bucket_inner_ids[i];
-        auto* codes = issue_data.data() + i * code_size_;
-        if (vl->Get(bucket_inner_id))
-            continue;
-        vl->Set(bucket_inner_id);
-        float d;
-        computer->ComputeDist(codes, &d);
-        result.emplace(d, bucket_inner_id);
-    }
+    // auto computer = quantizer_->FactoryComputer();
+    // computer->SetQuery(query->GetFloat32Vectors());
+    //
+    // for (int i = 0; i < issue_bucket_inner_ids.size(); i++) {
+    //     auto bucket_inner_id = issue_bucket_inner_ids[i];
+    //     auto* codes = issue_data.data() + i * code_size_;
+    //     if (vl->Get(bucket_inner_id))
+    //         continue;
+    //     vl->Set(bucket_inner_id);
+    //     float d;
+    //     computer->ComputeDist(codes, &d);
+    //     result.emplace(d, bucket_inner_id);
+    // }
 
     // IO-Related
-    cmp_count_ += issue_bucket_inner_ids.size();
+    // cmp_count_ += issue_bucket_inner_ids.size();
 
     pool_->ReturnOne(vl);
 
@@ -839,11 +931,11 @@ PAGraph::resize(uint64_t new_size) {
     auto cur_size = this->max_capacity_;
     // new_size = next_multiple_of_power_of_two(new_size, resize_increase_count_bit_);
     if (cur_size < new_size) {
-        graph_ids_.resize(new_size);
+        // graph_ids_.resize(new_size);
         // if (graph_)
         //     graph_->Resize(new_size);
-        radii_.resize(new_size);
-        buckets_->resize(new_size);
+        // radii_.resize(new_size);
+        // buckets_->resize(new_size);
         pool_ = std::make_unique<VisitedListPool>(1, allocator_, new_size, allocator_);
         label_table_->label_table_.resize(new_size);
         this->max_capacity_ = new_size;
@@ -894,14 +986,15 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
         "build_params": {
             "build_thread_count": 100,
             "sample_rate": 0.5,
-            "start_decay_rate": 0.5,
+            "start_decay_rate": 0.35,
             "capacity": 48,
             "num_iter": 1,
             "replicas": 4,
             "fine_radius_rate": 0.5,
             "coarse_radius_rate": 0.5,
             "ef": 250,
-            "use_quantization": false
+            "use_quantization": false,
+            "bucket_file": "/tmp/test_pag_sift/buckets.bin"
         }
     })";
 

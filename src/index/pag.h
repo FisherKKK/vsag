@@ -184,9 +184,12 @@ private:
 
     std::unique_ptr<BasicSearcher> searcher_{nullptr};
 
-    std::unique_ptr<BasicIO<AsyncIO>> io_;
+    // std::unique_ptr<BasicIO<AsyncIO>> io_;
 
     std::unique_ptr<Quantizer<FP32Quantizer<>>> quantizer_;
+
+    std::shared_ptr<Reader> disk_reader_;
+    std::function<void(uint64_t offset, uint64_t size, void *dest, CallBack)> batch_read_;
 
 
     FlattenDataCellParamPtr low_precision_graph_flatten_codes_param_;

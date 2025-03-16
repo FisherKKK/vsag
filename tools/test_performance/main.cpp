@@ -41,7 +41,7 @@ run_test(const std::string& index_name,
          const std::string& search_parameters,
          const std::string& dataset_path);
 
-const static std::string DIR_NAME = "/tmp/test_pag_sift/";
+const static std::string DIR_NAME = "/tmp/test_pag_gist/";
 const static std::string META_DATA_FILE = "pag_meta.data";
 
 int

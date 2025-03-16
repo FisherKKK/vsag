@@ -89,6 +89,8 @@ PAGraphParameter::FromJson(const JsonType& json) {
         low_precision_graph_flatten_codes_param_ = std::make_shared<FlattenDataCellParameter>();
         low_precision_graph_flatten_codes_param_->FromJson(json["quantization_codes"]);
     }
+
+    this->bucket_file_ = build_param_json["bucket_file"];
 }
 
 JsonType
