@@ -41,8 +41,8 @@ run_test(const std::string& index_name,
          const std::string& search_parameters,
          const std::string& dataset_path);
 
-const static std::string DIR_NAME = "/tmp/test_diskann_gist/";
-const static std::string META_DATA_FILE = "diskann_meta.data";
+const static std::string DIR_NAME = "/tmp/test_pag_gist/";
+const static std::string META_DATA_FILE = "pag_meta.data";
 
 int
 main(int argc, char* argv[]) {

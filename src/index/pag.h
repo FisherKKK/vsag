@@ -197,7 +197,8 @@ private:
     bool use_quantization_{false};
     const uint64_t resize_increase_count_bit_{10};
     const int64_t thread_block_size_{800};
-    const float recal_threshold_{0.1};
+    const float recal_threshold_{0.1f};
+    const float alpha_{1.2f};
 
     // Vector<std::mutex> buckets_mutex_;
     // std::shared_mutex bucket_mutex_;

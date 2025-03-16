@@ -572,7 +572,7 @@ PAGraph::get_radius() {
 
     // Min-Max the radii
     for (auto& r : radii_) {
-        r = std::min(r, upper_bound_radius_);
+        r = std::max(r, upper_bound_radius_);
     }
 }
 
@@ -682,7 +682,7 @@ PAGraph::aggregate_pag(const DatasetPtr& base) {
             while (result_copy.size() > bound_position) {
                 result_copy.pop();
             }
-            radii_.emplace_back(std::min(result_copy.top().first, upper_bound_radius_));
+            radii_.emplace_back(std::max(result_copy.top().first, upper_bound_radius_));
             entry_point_ = graph_id;
         } else {
             while (result.size() > 0) {
@@ -737,7 +737,7 @@ PAGraph::select_partition_by_heuristic(MaxHeap& candidates) {
             for (auto [pre_dist, pre_graph_id] : return_list) {
                 auto dist_partition =
                     graph_flatten_codes_->ComputePairVectors(cur_graph_id, pre_graph_id);
-                if (dist_partition < positive_cur_dist) {
+                if (dist_partition * alpha_ < positive_cur_dist) {
                     good = false;
                     break;
                 }
@@ -769,11 +769,11 @@ PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_cap
     } else if (dr_ratio < 1.f) {
         dr_factor = 0.95f;
     } else if (dr_ratio < 2.0f) {
-        dr_factor = 0.0f;
+        dr_factor = 0.5f;
     } else if (dr_ratio < 3.0f) {
-        dr_factor = 0.0f;
+        dr_factor = 0.2f;
     } else {
-        dr_factor = 0.0f;
+        dr_factor = 0.1f;
     }
 
     float bucket_factor;
@@ -784,9 +784,9 @@ PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_cap
     } else if (bucket_ratio <= 0.8f) {
         bucket_factor = 0.98f;
     }else if (bucket_ratio <= 0.9) {
-        bucket_factor = 0.1f;
+        bucket_factor = 0.2f;
     } else {
-        bucket_factor = 0.0f;
+        bucket_factor = 0.1f;
     }
 
     return dr_factor * bucket_factor;
@@ -899,8 +899,8 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
             "num_iter": 1,
             "replicas": 4,
             "fine_radius_rate": 0.5,
-            "coarse_radius_rate": 0.8,
-            "ef": 200,
+            "coarse_radius_rate": 0.5,
+            "ef": 250,
             "use_quantization": false
         }
     })";
