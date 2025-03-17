@@ -320,7 +320,7 @@ PAGraph::KnnSearch(const DatasetPtr& query,
 
 #ifdef OMYDEBUG
     {
-        std::fstream stream("/tmp/stat/adapt.txt", std::ios_base::out);
+        std::fstream stream("/tmp/test_pag_sift/bucket_2025.txt", std::ios_base::out);
         while (graph_id_result.size() > 0) {
             auto [centroid_dist, centroid_id] = graph_id_result.top();
             auto inner_id = graph_ids_[centroid_id];
@@ -346,19 +346,30 @@ PAGraph::KnnSearch(const DatasetPtr& query,
     std::condition_variable cv;
     int64_t issue_data_off = 0;
 
+    MaxHeap graph_id_result_ne(allocator_);
     while (graph_id_result.size() > 0) {
-        auto [centroid_dist, centroid_id] = graph_id_result.top();
-        auto inner_id = graph_ids_[centroid_id];
+        auto [d, id] = graph_id_result.top();
+        graph_id_result_ne.emplace(-d, id);
         graph_id_result.pop();
+    }
+
+    auto upper_bound = radii_[graph_id_result_ne.top().second] - graph_id_result_ne.top().first;
+    // auto lower_bound = -radii_[graph_id_result_ne.top().second] - graph_id_result_ne.top().first;
+
+    while (graph_id_result_ne.size() > 0) {
+        auto [centroid_dist, centroid_id] = graph_id_result_ne.top();
+        auto r = radii_[centroid_id];
+        auto inner_id = graph_ids_[centroid_id];
+        graph_id_result_ne.pop();
         if (!use_quantization_) {
-            result.emplace(centroid_dist, inner_id);
+            result.emplace(-centroid_dist, inner_id);
             vl->Set(inner_id);
         }
 
         auto& bucket = buckets_->at(centroid_id);
         auto issue_size = bucket->size() * code_size_;
         auto offset = line_size_ * centroid_id;
-        if (issue_size == 0)
+        if (issue_size == 0 || (-r - centroid_dist > upper_bound * 0.9))
             continue;
 
 
@@ -781,7 +792,7 @@ PAGraph::aggregate_pag(const DatasetPtr& base) {
                 auto partition = result.top().second;
                 result.pop();
                 // TODO capacity check
-                if (result.size() > replicas_ || buckets_->at(partition)->size() >= capacity_)
+                if (result.size() > replicas_ || buckets_->at(partition)->size() >= capacity_ - 2)
                     continue;
                 buckets_->at(partition)->emplace_back(i);
             }
@@ -986,10 +997,10 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
         "build_params": {
             "build_thread_count": 100,
             "sample_rate": 0.5,
-            "start_decay_rate": 0.35,
+            "start_decay_rate": 0.38,
             "capacity": 48,
             "num_iter": 1,
-            "replicas": 4,
+            "replicas": 8,
             "fine_radius_rate": 0.5,
             "coarse_radius_rate": 0.5,
             "ef": 250,

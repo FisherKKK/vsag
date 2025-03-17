@@ -33,6 +33,7 @@ using namespace spdlog;
 using namespace vsag;
 using namespace vsag::eval;
 // #define ODEBUG
+// #define ONUM
 
 json
 run_test(const std::string& index_name,
@@ -42,7 +43,7 @@ run_test(const std::string& index_name,
          const std::string& dataset_path);
 
 const static std::string DIR_NAME = "/tmp/test_pag_gist/";
-const static std::string META_DATA_FILE = "pag_meta.data";
+const static std::string META_DATA_FILE = "pag_gist_meta.data";
 
 int
 main(int argc, char* argv[]) {
@@ -246,13 +247,27 @@ public:
         auto search_finish = std::chrono::steady_clock::now();
 
         // calculate recall
+#ifdef ONUM
+        const float recall_threshold = 0.9f;
+        int reach_num = 0;
+#endif
         for (int64_t i = 0; i < total; ++i) {
             // k@k
             int64_t* neighbors = eval_dataset->GetNeighbors(i);
             const int64_t* ground_truth = results[i]->GetIds();
             auto hit_result = get_intersection(neighbors, ground_truth, top_k, top_k);
             correct += hit_result.size();
+
+#ifdef ONUM
+            if (hit_result.size() / (top_k + 0.000001f) > recall_threshold)
+                reach_num += 1;
+#endif
         }
+
+#ifdef ONUM
+        spdlog::debug("reach num: " + std::to_string(reach_num));
+#endif
+
         spdlog::debug("correct: " + std::to_string(correct));
         float recall = 1.0 * correct / (total * top_k);
 

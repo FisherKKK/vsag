@@ -272,3 +272,129 @@ R"(
     diskann
     "{\"dim\": 960, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"diskann\": {\"max_degree\": 48, \"ef_construction\": 250, \"pq_sample_rate\": 0.5, \"pq_dims\": 512, \"use_pq_search\": true, \"use_async_io\": true, \"use_bsa\": false}}"
     "{\"diskann\":{\"ef_search\":80,\"beam_search\":4,\"io_limit\":512,\"use_reorder\":true}}"
+
+
+
+# 对于SIFT
+const static std::string DIR_NAME = "/tmp/test_pag_sift/";
+const static std::string META_DATA_FILE = "pag_sift_meta.data";
+R"(
+    {
+        "type": "pagraph",
+        "graph": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "max_degree": 48,
+            "init_capacity": 100
+        },
+        "odescent": {
+            "max_degree": 48,
+            "alpha": 1.2,
+            "graph_iter_turn": 50,
+            "neighbor_sample_rate": 0.3,
+            "min_in_degree": 4,
+            "build_block_size": 100
+        },
+        "base_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "fp32",
+                "use_quantization": "false"
+            }
+        },
+        "quantization_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path_qt"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "sq8_uniform"
+            }
+        },
+        "build_params": {
+            "build_thread_count": 100,
+            "sample_rate": 0.5,
+            "start_decay_rate": 0.38,
+            "capacity": 48,
+            "num_iter": 1,
+            "replicas": 4,
+            "fine_radius_rate": 0.5,
+            "coarse_radius_rate": 0.5,
+            "ef": 250,
+            "use_quantization": false,
+            "bucket_file": "/tmp/test_pag_sift/buckets.bin"
+        }
+    })";
+
+对于GIST
+const static std::string DIR_NAME = "/tmp/test_pag_gist/";
+const static std::string META_DATA_FILE = "pag_gist_meta.data";
+static const std::string PAGRAPH_PARAMS_TEMPLATE =
+    R"(
+    {
+        "type": "pagraph",
+        "graph": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "max_degree": 48,
+            "init_capacity": 100
+        },
+        "odescent": {
+            "max_degree": 48,
+            "alpha": 1.2,
+            "graph_iter_turn": 50,
+            "neighbor_sample_rate": 0.3,
+            "min_in_degree": 4,
+            "build_block_size": 100
+        },
+        "base_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "fp32",
+                "use_quantization": "false"
+            }
+        },
+        "quantization_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path_qt"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "sq8_uniform"
+            }
+        },
+        "build_params": {
+            "build_thread_count": 100,
+            "sample_rate": 0.5,
+            "start_decay_rate": 0.38,
+            "capacity": 48,
+            "num_iter": 1,
+            "replicas": 8,
+            "fine_radius_rate": 0.5,
+            "coarse_radius_rate": 0.5,
+            "ef": 250,
+            "use_quantization": false,
+            "bucket_file": "/tmp/test_pag_sift/buckets.bin"
+        }
+    })";
+
+      PAG
+        /home/dataset/gist/gist-960-euclidean.hdf5
+        build
+        pagraph
+        "{\"dim\": 960, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"hnsw\": {\"max_degree\": 12, \"ef_construction\": 100}, \"diskann\": {\"max_degree\": 12, \"ef_construction\": 100, \"pq_dims\": 64, \"pq_sample_rate\": 0.1}, \"pagraph\": {}}"
+        "{\"hnsw\":{\"ef_search\":100},\"diskann\":{\"ef_search\":100,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}, \"pagraph\": {\"nprobe\": 100, \"ef_search\": 400}}"
