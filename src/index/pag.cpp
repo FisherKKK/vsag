@@ -1002,7 +1002,7 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
             "start_decay_rate": 0.98,
             "capacity": 48,
             "num_iter": 1,
-            "replicas": 4,
+            "replicas": 8,
             "fine_radius_rate": 0.5,
             "coarse_radius_rate": 0.5,
             "ef": 250,
