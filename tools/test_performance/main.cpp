@@ -32,7 +32,7 @@ using namespace nlohmann;
 using namespace spdlog;
 using namespace vsag;
 using namespace vsag::eval;
-// #define ODEBUG
+#define ODEBUG
 // #define ONUM
 
 json
@@ -42,8 +42,8 @@ run_test(const std::string& index_name,
          const std::string& search_parameters,
          const std::string& dataset_path);
 
-const static std::string DIR_NAME = "/tmp/test_pag_q_sift/";
-const static std::string META_DATA_FILE = "pag_q_sift_meta.data";
+const static std::string DIR_NAME = "/tmp/test_pag/";
+const static std::string META_DATA_FILE = "pag_meta.data";
 
 int
 main(int argc, char* argv[]) {

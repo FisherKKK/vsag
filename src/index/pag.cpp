@@ -999,7 +999,7 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
         "build_params": {
             "build_thread_count": 100,
             "sample_rate": 0.5,
-            "start_decay_rate": 0.98,
+            "start_decay_rate": 0.38,
             "capacity": 48,
             "num_iter": 1,
             "replicas": 8,
@@ -1007,7 +1007,7 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
             "coarse_radius_rate": 0.5,
             "ef": 250,
             "use_quantization": true,
-            "bucket_file": "/tmp/test_pag_q_sift/pag_q_sift_buckets.bin"
+            "bucket_file": "/tmp/test_pag/buckets.bin"
         }
     })";
 
