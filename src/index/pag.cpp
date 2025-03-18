@@ -687,6 +687,7 @@ PAGraph::aggregate_pag(const DatasetPtr& base) {
 
     UnorderedSet<InnerIdType> graph_ids_set(allocator_);
     graph_ids_set.insert(graph_ids_.begin(), graph_ids_.end());
+    assert(graph_ids_set.size() == graph_ids_.size());
 
     InnerSearchParam search_param;
     search_param.topk = graph_->MaximumDegree();
