@@ -123,9 +123,9 @@ main(int argc, char** argv) {
     //
     /****************** Serialize and Deserialize PAGraph ****************/
     std::string dataset_path = "/home/dataset/sift/sift-128-euclidean.hdf5";
-    std::filesystem::path dir("/tmp/test_performance/");
+    std::filesystem::path dir("/tmp/test_pag_sift/");
         std::map<std::string, size_t> file_sizes;
-        std::ifstream infile(dir / "pagraph_meta_ready.data");
+        std::ifstream infile(dir / "pag_sift_meta.data");
         std::string filename;
         size_t size;
         while (infile >> filename >> size) {

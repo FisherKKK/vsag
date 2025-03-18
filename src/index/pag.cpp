@@ -369,7 +369,7 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         auto& bucket = buckets_->at(centroid_id);
         auto issue_size = bucket->size() * code_size_;
         auto offset = line_size_ * centroid_id;
-        if (issue_size == 0 || (-r - centroid_dist > upper_bound * 0.9))
+        if (issue_size == 0) // || (-r - centroid_dist > upper_bound * 0.9))
             continue;
 
 
@@ -792,7 +792,7 @@ PAGraph::aggregate_pag(const DatasetPtr& base) {
                 auto partition = result.top().second;
                 result.pop();
                 // TODO capacity check
-                if (result.size() > replicas_ || buckets_->at(partition)->size() >= capacity_ - 2)
+                if (result.size() > replicas_ || buckets_->at(partition)->size() >= capacity_)
                     continue;
                 buckets_->at(partition)->emplace_back(i);
             }
@@ -859,7 +859,7 @@ PAGraph::select_partition_by_heuristic(MaxHeap& candidates) {
 
 float
 PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_capacity) {
-    if (cur_bucket_size >= bucket_capacity)
+    if (cur_bucket_size + 3 >= bucket_capacity)
         return .0f;
     auto dr_ratio = d / (r + 0.000001f);
     auto bucket_ratio = cur_bucket_size / (float)(bucket_capacity + 0.000001f);
@@ -888,8 +888,10 @@ PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_cap
         bucket_factor = 0.98f;
     }else if (bucket_ratio <= 0.9) {
         bucket_factor = 0.2f;
-    } else {
+    } else if (bucket_ratio <= 0.95) {
         bucket_factor = 0.1f;
+    } else {
+        bucket_factor = 0.001f;
     }
 
     return dr_factor * bucket_factor;
@@ -997,15 +999,15 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
         "build_params": {
             "build_thread_count": 100,
             "sample_rate": 0.5,
-            "start_decay_rate": 0.38,
+            "start_decay_rate": 0.98,
             "capacity": 48,
             "num_iter": 1,
-            "replicas": 8,
+            "replicas": 4,
             "fine_radius_rate": 0.5,
             "coarse_radius_rate": 0.5,
             "ef": 250,
-            "use_quantization": false,
-            "bucket_file": "/tmp/test_pag_sift/buckets.bin"
+            "use_quantization": true,
+            "bucket_file": "/tmp/test_pag_q_sift/pag_q_sift_buckets.bin"
         }
     })";
 
