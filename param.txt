@@ -333,6 +333,64 @@ R"(
         }
     })";
 
+
+q pag
+R"(
+    {
+        "type": "pagraph",
+        "graph": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "max_degree": 48,
+            "init_capacity": 100
+        },
+        "odescent": {
+            "max_degree": 48,
+            "alpha": 1.2,
+            "graph_iter_turn": 50,
+            "neighbor_sample_rate": 0.3,
+            "min_in_degree": 4,
+            "build_block_size": 100
+        },
+        "base_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "fp32",
+                "use_quantization": "false"
+            }
+        },
+        "quantization_codes": {
+            "io_params": {
+                "type": "block_memory_io",
+                "file_path": "./default_file_path_qt"
+            },
+            "codes_type": "flatten_codes",
+            "quantization_params": {
+                "type": "sq8_uniform"
+            }
+        },
+        "build_params": {
+            "build_thread_count": 100,
+            "sample_rate": 0.5,
+            "start_decay_rate": 0.98,
+            "capacity": 48,
+            "num_iter": 1,
+            "replicas": 4,
+            "fine_radius_rate": 0.5,
+            "coarse_radius_rate": 0.5,
+            "ef": 250,
+            "use_quantization": true,
+            "bucket_file": "/tmp/test_pag_q_sift/pag_q_sift_buckets.bin"
+        }
+    })";
+
+
 对于GIST
 const static std::string DIR_NAME = "/tmp/test_pag_gist/";
 const static std::string META_DATA_FILE = "pag_gist_meta.data";
