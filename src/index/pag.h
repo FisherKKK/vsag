@@ -144,7 +144,7 @@ private:
     IndexCommonParam common_param_;
     // PAGraphParameter pag_param_;
     int64_t dim_{0};
-    MetricType metric_{MetricType::METRIC_TYPE_L2SQR};
+    MetricType metric_{MetricType::METRIC_TYPE_IP};
     InnerIdType max_capacity_{100};
     int64_t num_elements_{0};
     uint64_t num_iter_{1};
@@ -186,7 +186,7 @@ private:
 
     // std::unique_ptr<BasicIO<AsyncIO>> io_;
 
-    std::unique_ptr<Quantizer<FP32Quantizer<>>> quantizer_;
+    std::unique_ptr<Quantizer<FP32Quantizer<MetricType::METRIC_TYPE_IP>>> quantizer_;
 
     std::shared_ptr<Reader> disk_reader_;
     std::function<void(uint64_t offset, uint64_t size, void *dest, CallBack)> batch_read_;
@@ -202,6 +202,8 @@ private:
     const int64_t thread_block_size_{800};
     const float recal_threshold_{0.1f};
     const float alpha_{1.f};
+
+    UnorderedSet<InnerIdType> entry_points_;
 
     // Vector<std::mutex> buckets_mutex_;
     // std::shared_mutex bucket_mutex_;

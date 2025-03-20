@@ -398,3 +398,14 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
         pagraph
         "{\"dim\": 960, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"hnsw\": {\"max_degree\": 12, \"ef_construction\": 100}, \"diskann\": {\"max_degree\": 12, \"ef_construction\": 100, \"pq_dims\": 64, \"pq_sample_rate\": 0.1}, \"pagraph\": {}}"
         "{\"hnsw\":{\"ef_search\":100},\"diskann\":{\"ef_search\":100,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}, \"pagraph\": {\"nprobe\": 100, \"ef_search\": 400}}"
+
+
+
+security
+
+PAG
+/data/dataset/security-256-ip.hdf5
+build
+pagraph
+"{\"dim\": 256, \"dtype\": \"float32\", \"metric_type\": \"ip\", \"hnsw\": {\"max_degree\": 12, \"ef_construction\": 100}, \"diskann\": {\"max_degree\": 12, \"ef_construction\": 100, \"pq_dims\": 64, \"pq_sample_rate\": 0.1}, \"pagraph\": {}}"
+"{\"hnsw\":{\"ef_search\":100},\"diskann\":{\"ef_search\":100,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}, \"pagraph\": {\"nprobe\": 100, \"ef_search\": 400}}"

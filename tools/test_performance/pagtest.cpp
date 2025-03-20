@@ -78,8 +78,8 @@ main(int argc, char** argv) {
     std::string pagraph_build_parameters = R"(
     {
         "dtype": "float32",
-        "metric_type": "l2",
-        "dim": 128,
+        "metric_type": "ip",
+        "dim": 256,
         "pagraph": {}
     }
     )";
@@ -122,10 +122,10 @@ main(int argc, char** argv) {
     // }
     //
     /****************** Serialize and Deserialize PAGraph ****************/
-    std::string dataset_path = "/home/dataset/sift/sift-128-euclidean.hdf5";
-    std::filesystem::path dir("/tmp/test_performance/");
+    std::string dataset_path = "/data/dataset/security-256-ip.hdf5";
+    std::filesystem::path dir("/data/index/test_pag_security256/");
         std::map<std::string, size_t> file_sizes;
-        std::ifstream infile(dir / "pagraph_meta_ready.data");
+        std::ifstream infile(dir / "pag_security256_meta.data");
         std::string filename;
         size_t size;
         while (infile >> filename >> size) {
@@ -167,7 +167,7 @@ main(int argc, char** argv) {
         int64_t total = eval_dataset->GetNumberOfQuery();
         spdlog::debug("total: " + std::to_string(total));
         std::vector<DatasetPtr> results;
-        int i = 2025;
+        int i = 998;
             auto query = Dataset::Make();
             query->NumElements(1)->Dim(eval_dataset->GetDim())->Owner(false);
 

@@ -42,8 +42,8 @@ run_test(const std::string& index_name,
          const std::string& search_parameters,
          const std::string& dataset_path);
 
-const static std::string DIR_NAME = "/tmp/test_pag_gist/";
-const static std::string META_DATA_FILE = "pag_gist_meta.data";
+const static std::string DIR_NAME = "/data/index/test_pag_security256/";
+const static std::string META_DATA_FILE = "pag_security256_meta.data";
 
 int
 main(int argc, char* argv[]) {
@@ -261,6 +261,8 @@ public:
 #ifdef ONUM
             if (hit_result.size() / (top_k + 0.000001f) > recall_threshold)
                 reach_num += 1;
+            else
+                std::cout << "no reach point #" << i << ", recall: " << hit_result.size() / (top_k + 0.000001f) << std::endl;
 #endif
         }
 

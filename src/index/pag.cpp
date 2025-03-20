@@ -26,7 +26,69 @@
 #include "utils/util_functions.h"
 // #define OMYDEBUG
 
+
+
 namespace vsag {
+
+namespace {
+struct UnionSet {
+    UnionSet() = default;
+    UnionSet(int64_t num_elements, Allocator *allocator) :
+        num_elements_(num_elements), parent_(num_elements, allocator),
+        rank_( num_elements, 0, allocator) {
+        for (int64_t i = 0; i < num_elements; i++)
+            parent_[i] = i;
+    }
+
+
+    int64_t Find(int64_t x) {
+        if (parent_[x] == x)
+            return x;
+
+        parent_[x] = Find(parent_[x]);
+        return parent_[x];
+    }
+
+    void Union(int64_t x, int64_t y) {
+        int64_t root_x = Find(x);
+        int64_t root_y = Find(y);
+
+        if (root_x != root_y) {
+            if (rank_[root_x] < rank_[root_y]) {
+                parent_[root_x] = root_y;
+            } else {
+                parent_[root_y] = root_x;
+                if (rank_[root_x] == rank_[root_y])
+                    rank_[root_x] += 1;
+            }
+        }
+    }
+
+    int64_t num_elements_;
+    Vector<int64_t> parent_;
+    Vector<int64_t> rank_;
+
+};
+
+// Graph Size: 535418, Single Visit Point: 448154
+void bfs(GraphInterfacePtr &graph, InnerIdType entry, UnorderedSet<InnerIdType>& visited, Allocator *allocator) {
+    Deque<InnerIdType> q(allocator);
+    q.emplace_back(entry);
+    while (q.size() > 0) {
+        auto top = q.front();
+        q.pop_front();
+        visited.emplace(top);
+        Vector<InnerIdType> nns(allocator);
+        graph->GetNeighbors(top, nns);
+        for (auto nn: nns) {
+            if (!visited.count(nn)) {
+                q.emplace_back(nn);
+            }
+        }
+    }
+};
+
+}
 
 PAGraph::PAGraph(const PAGraphParameterPtr& pag_param, const IndexCommonParam& common_param)
     : InnerIndexInterface(pag_param, common_param),
@@ -49,7 +111,8 @@ PAGraph::PAGraph(const PAGraphParameterPtr& pag_param, const IndexCommonParam& c
       odescent_param_(pag_param->odescent_param_),
       use_quantization_(pag_param->use_quantization_),
       low_precision_graph_flatten_codes_param_(pag_param->low_precision_graph_flatten_codes_param_),
-      thread_pool_(common_param_.thread_pool_) {
+      thread_pool_(common_param_.thread_pool_),
+      entry_points_(allocator_) {
     code_size_ = dim_ * sizeof(float);
     line_size_ = capacity_ * code_size_;  // TODO: for float
     pool_ = std::make_unique<VisitedListPool>(
@@ -75,7 +138,7 @@ PAGraph::PAGraph(const PAGraphParameterPtr& pag_param, const IndexCommonParam& c
         disk_reader_->AsyncRead(offset, size, dest, callback);
     };
 
-    quantizer_ = std::make_unique<FP32Quantizer<MetricType::METRIC_TYPE_L2SQR>>(
+    quantizer_ = std::make_unique<FP32Quantizer<MetricType::METRIC_TYPE_IP>>(
         common_param.dim_,
         common_param.allocator_.get());  // TODO: quantizer for bucket calculation
 
@@ -178,6 +241,30 @@ PAGraph::Build(const DatasetPtr& base) {
             odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
         graph_builder.Build();
         graph_builder.SaveGraph(graph_);
+
+        {
+            // Here the graph is un-connected
+            UnorderedSet<InnerIdType> visited(allocator_);
+            // std::function<void(InnerIdType)> dfs = [&](InnerIdType entry) -> void {
+            //     if (visited.count(entry) == 0) {
+            //         Vector<InnerIdType> nns(allocator_);
+            //         graph_->GetNeighbors(entry, nns);
+            //         visited.insert(entry);
+            //         for (auto nn: nns) {
+            //             dfs(nn);
+            //         }
+            //     }
+            // };
+            //
+            // dfs(entry_point_);
+            bfs(graph_, entry_point_, visited, allocator_);
+
+            std::cout << "Graph Size: " << graph_ids_.size()
+                      << ", Single Visit Point: " << visited.size() << std::endl;
+
+            exit(0);
+
+        }
 
         // Get radius of graph, radii is graph_inner_id driven
         get_radius();
@@ -296,13 +383,30 @@ PAGraph::KnnSearch(const DatasetPtr& query,
     }
 
     // Vector<AlignedRead> sorted_read_reqs(allocator_);
-    auto graph_id_result = searcher_->Search(
-        graph_, flatten_codes, vl, query->GetFloat32Vectors(), search_param);
+    MaxHeap graph_id_results(allocator_);
+    for (auto entry: entry_points_) {
+        search_param.ep = entry;
+        auto graph_id_result = searcher_->Search(
+            graph_, flatten_codes, vl, query->GetFloat32Vectors(), search_param);
+
+        // Merge result
+        while (graph_id_result.size() > 0) {
+            graph_id_results.emplace(graph_id_result.top());
+            graph_id_result.pop();
+        }
+    }
+
+    while (graph_id_results.size() > nprobe) {
+        graph_id_results.pop();
+    }
+
+    // auto graph_id_result = searcher_->Search(
+    //     graph_, flatten_codes, vl, query->GetFloat32Vectors(), search_param);
 
 
     // sorted_read_reqs.reserve(graph_id_result.size());
     Vector<uint8_t> issue_data(allocator_);
-    issue_data.resize(line_size_ * graph_id_result.size());
+    issue_data.resize(line_size_ * graph_id_results.size());
 
     // Vector<uint64_t> issue_sizes(allocator_);
     // issue_sizes.reserve(nprobe);
@@ -320,14 +424,15 @@ PAGraph::KnnSearch(const DatasetPtr& query,
 
 #ifdef OMYDEBUG
     {
-        std::fstream stream("/tmp/test_pag_sift/bucket_2025.txt", std::ios_base::out);
+        std::fstream stream("/data/index/test_pag_security256/bucket_998.txt", std::ios_base::out);
         while (graph_id_result.size() > 0) {
             auto [centroid_dist, centroid_id] = graph_id_result.top();
             auto inner_id = graph_ids_[centroid_id];
             auto& bucket = buckets_->at(centroid_id);
-            stream << label_table_->GetLabelById(inner_id) << " ";
+            // stream << label_table_->GetLabelById(inner_id) << " ";
+            stream << inner_id << " ";
             for (auto id: *bucket) {
-                stream << label_table_->GetLabelById(id) << " ";
+                stream << id << " ";
             }
             stream << std::endl;
             graph_id_result.pop();
@@ -347,13 +452,13 @@ PAGraph::KnnSearch(const DatasetPtr& query,
     int64_t issue_data_off = 0;
 
     MaxHeap graph_id_result_ne(allocator_);
-    while (graph_id_result.size() > 0) {
-        auto [d, id] = graph_id_result.top();
+    while (graph_id_results.size() > 0) {
+        auto [d, id] = graph_id_results.top();
         graph_id_result_ne.emplace(-d, id);
-        graph_id_result.pop();
+        graph_id_results.pop();
     }
 
-    auto upper_bound = radii_[graph_id_result_ne.top().second] - graph_id_result_ne.top().first;
+    // auto upper_bound = radii_[graph_id_result_ne.top().second] - graph_id_result_ne.top().first;
     // auto lower_bound = -radii_[graph_id_result_ne.top().second] - graph_id_result_ne.top().first;
 
     while (graph_id_result_ne.size() > 0) {
@@ -369,7 +474,7 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         auto& bucket = buckets_->at(centroid_id);
         auto issue_size = bucket->size() * code_size_;
         auto offset = line_size_ * centroid_id;
-        if (issue_size == 0 || (-r - centroid_dist > upper_bound * 0.9))
+        if (issue_size == 0) //|| (-r - centroid_dist > upper_bound))
             continue;
 
 
@@ -527,6 +632,9 @@ PAGraph::Serialize(StreamWriter& writer) const {
     }
 }
 
+
+
+
 void
 PAGraph::Deserialize(StreamReader& reader) {
     StreamReader::ReadObj(reader, dim_);
@@ -576,6 +684,48 @@ PAGraph::Deserialize(StreamReader& reader) {
     graph_ = GraphInterface::MakeInstance(graph_param_, common_param_);
     graph_->Deserialize(reader);
 
+    {
+        auto graph_size = graph_->TotalCount();
+        UnionSet us(graph_size, allocator_);
+        for (InnerIdType i = 0; i < graph_size; i++) {
+            Vector<InnerIdType> nns(allocator_);
+            graph_->GetNeighbors(i, nns);
+            for (auto nn: nns) {
+                us.Union(i, nn);
+            }
+        }
+
+        for (InnerIdType i = 0; i < graph_size; i++) {
+            entry_points_.emplace(us.Find(i));
+        }
+
+        std::cout << "Entry points: " << entry_points_.size() << std::endl;
+
+    }
+
+#ifdef OMYDEBUG
+    {
+        UnorderedSet<InnerIdType> visited(allocator_);
+        // std::function<void(InnerIdType)> dfs = [&](InnerIdType entry) -> void {
+        //     if (visited.count(entry) == 0) {
+        //         Vector<InnerIdType> nns(allocator_);
+        //         graph_->GetNeighbors(entry, nns);
+        //         visited.insert(entry);
+        //         for (auto nn: nns) {
+        //             dfs(nn);
+        //         }
+        //     }
+        // };
+        //
+        // dfs(entry_point_);
+        bfs(graph_, entry_point_, visited, allocator_);
+
+        std::cout << "Graph Size: " << graph_ids_.size()
+                  << ", Single Visit Point: " << visited.size() << std::endl;
+
+    }
+#endif
+
     // Bucket ids
     buckets_ = std::make_shared<InnerIdBucket>(allocator_);
     for (int i = 0; i < graph_ids_.size(); i++) {
@@ -583,6 +733,35 @@ PAGraph::Deserialize(StreamReader& reader) {
         StreamReader::ReadVector(reader, *bucket);
         buckets_->emplace_back(std::move(bucket));
     }
+#ifdef OMYDEBUG
+    {
+
+        auto &bucket = *(buckets_->at(51887));
+        for (auto bid: bucket) {
+            std::cout << bid << " ";
+        }
+        std::cout << std::endl;
+
+        for (auto gid: graph_ids_) {
+            if (gid == 1068709 || gid == 804407) {
+                std::cout << gid << " hit" << "...." << std::endl;
+            }
+        }
+        std::cout << "Graph id of nearest: ";
+        int64_t bucket_num = buckets_->size();
+        for (int64_t i = 0; i < bucket_num; i++) {
+            auto &bucket = *(buckets_->at(i));
+            for (auto bid: bucket) {
+                if (bid == 1068709 || bid == 804407) {
+                    std::cout << bid << ":" << i << ":" << graph_ids_[i] << " ";
+                }
+            }
+        }
+        std::cout << std::endl;
+    }
+#endif
+
+
 
 #ifdef OMYDEBUG
     {
@@ -792,7 +971,7 @@ PAGraph::aggregate_pag(const DatasetPtr& base) {
                 auto partition = result.top().second;
                 result.pop();
                 // TODO capacity check
-                if (result.size() > replicas_ || buckets_->at(partition)->size() >= capacity_ - 2)
+                if (result.size() > replicas_ || buckets_->at(partition)->size() >= capacity_)
                     continue;
                 buckets_->at(partition)->emplace_back(i);
             }
@@ -859,7 +1038,7 @@ PAGraph::select_partition_by_heuristic(MaxHeap& candidates) {
 
 float
 PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_capacity) {
-    if (cur_bucket_size >= bucket_capacity)
+    if (cur_bucket_size + 2 > bucket_capacity)
         return .0f;
     auto dr_ratio = d / (r + 0.000001f);
     auto bucket_ratio = cur_bucket_size / (float)(bucket_capacity + 0.000001f);
@@ -888,8 +1067,10 @@ PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_cap
         bucket_factor = 0.98f;
     }else if (bucket_ratio <= 0.9) {
         bucket_factor = 0.2f;
-    } else {
+    } else if (bucket_ratio <= 0.95) {
         bucket_factor = 0.1f;
+    } else {
+        bucket_factor = 0.00001f;
     }
 
     return dr_factor * bucket_factor;
@@ -962,7 +1143,7 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
                 "type": "block_memory_io",
                 "file_path": "./default_file_path"
             },
-            "max_degree": 48,
+            "max_degree": 64,
             "init_capacity": 100
         },
         "odescent": {
@@ -1000,12 +1181,12 @@ static const std::string PAGRAPH_PARAMS_TEMPLATE =
             "start_decay_rate": 0.38,
             "capacity": 48,
             "num_iter": 1,
-            "replicas": 8,
+            "replicas": 4,
             "fine_radius_rate": 0.5,
-            "coarse_radius_rate": 0.5,
+            "coarse_radius_rate": 0.6,
             "ef": 250,
             "use_quantization": false,
-            "bucket_file": "/tmp/test_pag_sift/buckets.bin"
+            "bucket_file": "/data/index/test_pag_security256/buckets.bin"
         }
     })";
 
