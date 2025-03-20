@@ -21,20 +21,65 @@
 
 namespace vsag {
 
+namespace {
+struct UnionSet {
+
+    UnionSet(InnerIdType num_elements, Allocator *allocator):
+        num_elements_(num_elements), parents_(num_elements, allocator),
+        rank_(num_elements, 0, allocator) {
+        for (InnerIdType i = 0; i < num_elements; i++) {
+            parents_[i] = i;
+        }
+    }
+
+
+    InnerIdType Find(InnerIdType x) {
+        if (parents_[x] == x) return x;
+        return parents_[x] = Find(parents_[x]);
+    }
+
+
+    void Union(InnerIdType x, InnerIdType y) {
+        InnerIdType root_x = Find(x);
+        InnerIdType root_y = Find(y);
+        if (root_x != root_y) {
+            if (rank_[root_x] < rank_[root_y]) {
+                parents_[root_x] = root_y;
+            } else {
+                parents_[root_y] = root_x;
+                if (rank_[root_x] == rank_[root_y])
+                    rank_[root_x] += 1;
+            }
+        }
+    }
+
+    InnerIdType num_elements_;
+    Vector<InnerIdType> parents_;
+    Vector<InnerIdType> rank_;
+};
+
+}
+
+
 std::vector<int64_t>
 UGraph::Build(const DatasetPtr& base) {
-
     ODescent graph_builder(odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
     graph_builder.Build();
     graph_builder.SaveGraph(graph_);
 
-    auto num_nodes = graph_->TotalCount();
-    Vector<Vector<std::pair<float, InnerIdType>>> edges(allocator_);
+    auto graph_size = graph_->TotalCount();
+    MaxHeap<Edge> edges(allocator_);
 
-
-    for (auto i = 0; i < num_nodes; i++) {
-
+    for (auto i = 0; i < graph_size; i++) {
+        Vector<InnerIdType> nns(allocator_);
+        graph_->GetNeighbors(i, nns);
+        for (auto nn: nns) {
+            auto d = graph_flatten_codes_->ComputePairVectors(i, nn);
+            edges.emplace(-d, i, nn);
+        }
     }
+
+
 }
 
 

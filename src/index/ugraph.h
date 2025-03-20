@@ -15,9 +15,9 @@
 
 #pragma once
 
-#include <data_cell/flatten_interface.h>
-#include <data_cell/graph_interface.h>
-#include <impl/odescent_graph_parameter.h>
+#include "data_cell/flatten_interface.h"
+#include "data_cell/graph_interface.h"
+#include "impl/odescent_graph_parameter.h"
 
 #include "ugraph_zparameters.h"
 #include "algorithm/inner_index_interface.h"
@@ -25,6 +25,7 @@
 namespace vsag {
 class UGraph : public InnerIndexInterface  {
 public:
+    using Edge = std::tuple<float, InnerIdType, InnerIdType>;
     UGraph(const UgraphParameterPtr& param, const IndexCommonParam& common_param)
     : InnerIndexInterface(param, common_param) {
 
