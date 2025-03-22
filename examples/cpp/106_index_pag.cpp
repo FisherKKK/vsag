@@ -15,8 +15,8 @@
 
 #include <vsag/vsag.h>
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 int
 main(int argc, char** argv) {
@@ -92,11 +92,10 @@ main(int argc, char** argv) {
         std::cout << result->GetIds()[i] << ": " << result->GetDistances()[i] << std::endl;
     }
 
-
     /****************** Serialize and Deserialize PAGraph ****************/
     std::unordered_map<std::string, size_t> meta_info;
     {
-        if(auto bs = index->Serialize(); bs.has_value()) {
+        if (auto bs = index->Serialize(); bs.has_value()) {
             index = nullptr;
             auto keys = bs->GetKeys();
             for (auto key : keys) {
@@ -112,8 +111,7 @@ main(int argc, char** argv) {
     {
         vsag::ReaderSet rs;
         for (const auto& [key, size] : meta_info) {
-            auto reader =
-                vsag::Factory::CreateLocalFileReader("pag.index." + key, 0, size);
+            auto reader = vsag::Factory::CreateLocalFileReader("pag.index." + key, 0, size);
             rs.Set(key, reader);
         }
 

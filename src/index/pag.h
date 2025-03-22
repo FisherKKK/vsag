@@ -13,10 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <data_cell/flatten_datacell.h>
+
+#include <iostream>
 #include <memory>
 #include <random>
-#include <iostream>
-#include <data_cell/flatten_datacell.h>
 
 #include "algorithm/inner_index_interface.h"
 #include "data_cell/graph_interface.h"
@@ -47,10 +48,9 @@ public:
     }
 
     ~PAGraph() override {
-        std::cout << "#query number: " << query_count_
-                  << ", #io count: " << io_total_count_
-                  << ", #io size: " << io_total_size_ / (1024 * 1024)
-                  << "MB" << ", #bucket vec cal number: " << cmp_count_ << std::endl;
+        std::cout << "#query number: " << query_count_ << ", #io count: " << io_total_count_
+                  << ", #io size: " << io_total_size_ / (1024 * 1024) << "MB"
+                  << ", #bucket vec cal number: " << cmp_count_ << std::endl;
     };
 
     std::vector<int64_t>
@@ -188,11 +188,8 @@ private:
 
     std::unique_ptr<Quantizer<FP32Quantizer<>>> quantizer_;
 
-
     FlattenDataCellParamPtr low_precision_graph_flatten_codes_param_;
     FlattenInterfacePtr low_precision_graph_flatten_codes_{nullptr};
-
-
 
     bool use_quantization_{false};
     const uint64_t resize_increase_count_bit_{10};

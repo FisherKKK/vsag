@@ -14,3 +14,47 @@
 // limitations under the License.
 
 #include "ugraph_zparameters.h"
+
+#include "inner_string_params.h"
+
+namespace vsag {
+void
+UGraphParameter::FromJson(const JsonType& json) {
+    // Build parameter
+    const auto& build_param_json = json[BUILD_PARAMS_KEY];
+    this->use_quantization_ = build_param_json["use_quantization"];
+
+    // Graph flatten codes parameter
+    const auto& graph_codes_json = json["base_codes"];
+    this->graph_flatten_codes_param_ = std::make_shared<FlattenDataCellParameter>();
+    this->graph_flatten_codes_param_->FromJson(graph_codes_json);
+
+    // Graph parameter
+    const auto& graph_json = json["graph"];
+    this->graph_param_ = GraphInterfaceParameter::GetGraphParameterByJson(graph_json);
+
+    // ODescent parameter
+    const auto& odescent = json["odescent"];
+    this->odescent_param_ = std::make_shared<ODescentParameter>();
+    this->odescent_param_->FromJson(odescent);
+
+    // Low precision
+    if (this->use_quantization_) {
+        low_precision_graph_flatten_codes_param_ = std::make_shared<FlattenDataCellParameter>();
+        low_precision_graph_flatten_codes_param_->FromJson(json["quantization_codes"]);
+    }
+
+    this->bucket_file_ = build_param_json["bucket_file"];
+}
+
+JsonType
+UGraphParameter::ToJson() {
+    JsonType json;
+    json["type"] = "pagraph";
+    json["graph"] = graph_param_->ToJson();
+    json["odescent"] = odescent_param_->ToJson();
+    json["base_codes"] = graph_flatten_codes_param_->ToJson();
+    return json;
+}
+
+}  // namespace vsag

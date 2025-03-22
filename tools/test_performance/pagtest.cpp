@@ -52,8 +52,6 @@ int
 main(int argc, char** argv) {
     vsag::init();
 
-
-
     // /******************* Prepare Base Dataset *****************/
     // int64_t num_vectors = 1000;
     // int64_t dim = 128;
@@ -80,7 +78,7 @@ main(int argc, char** argv) {
         "dtype": "float32",
         "metric_type": "l2",
         "dim": 128,
-        "pagraph": {}
+        "ugraph": {}
     }
     )";
     // vsag::Engine engine;
@@ -106,7 +104,7 @@ main(int argc, char** argv) {
     // /******************* KnnSearch For PAGraph Index *****************/
     auto pagraph_search_parameters = R"(
     {
-        "pagraph": {
+        "ugraph": {
             "ef_search": 1000,
             "nprobe": 600
         }
@@ -122,81 +120,81 @@ main(int argc, char** argv) {
     // }
     //
     /****************** Serialize and Deserialize PAGraph ****************/
-    std::string dataset_path = "/home/dataset/sift/sift-128-euclidean.hdf5";
-    std::filesystem::path dir("/tmp/test_performance/");
-        std::map<std::string, size_t> file_sizes;
-        std::ifstream infile(dir / "pagraph_meta_ready.data");
-        std::string filename;
-        size_t size;
-        while (infile >> filename >> size) {
-            file_sizes[filename] = size;
-        }
-        infile.close();
+    std::string dataset_path = "/data/dataset/sift-128-euclidean.hdf5";
+    std::filesystem::path dir("/data/index/test_ugraph_sift/");
+    std::map<std::string, size_t> file_sizes;
+    std::ifstream infile(dir / "ugragh_sift_meta.dat");
+    std::string filename;
+    size_t size;
+    while (infile >> filename >> size) {
+        file_sizes[filename] = size;
+    }
+    infile.close();
 
-        auto index = vsag::Factory::CreateIndex("pagraph", pagraph_build_parameters).value();
-        vsag::ReaderSet reader_set;
-        for (const auto& single_file : file_sizes) {
-            const std::string& key = single_file.first;
-            size = single_file.second;
-            std::filesystem::path file_path(key);
-            std::filesystem::path full_path = dir / file_path;
-            auto reader = vsag::Factory::CreateLocalFileReader(full_path.string(), 0, size);
-            reader_set.Set(key, reader);
-        }
+    auto index = vsag::Factory::CreateIndex("ugraph", pagraph_build_parameters).value();
+    vsag::ReaderSet reader_set;
+    for (const auto& single_file : file_sizes) {
+        const std::string& key = single_file.first;
+        size = single_file.second;
+        std::filesystem::path file_path(key);
+        std::filesystem::path full_path = dir / file_path;
+        auto reader = vsag::Factory::CreateLocalFileReader(full_path.string(), 0, size);
+        reader_set.Set(key, reader);
+    }
 
-        index->Deserialize(reader_set);
-        unsigned long long memoryUsage = 0;
-        std::ifstream statFileAfter("/proc/self/status");
-        if (statFileAfter.is_open()) {
-            std::string line;
-            while (std::getline(statFileAfter, line)) {
-                if (line.substr(0, 6) == "VmRSS:") {
-                    std::string value = line.substr(6);
-                    memoryUsage = std::stoull(value) * 1024;
-                    break;
-                }
+    index->Deserialize(reader_set);
+    unsigned long long memoryUsage = 0;
+    std::ifstream statFileAfter("/proc/self/status");
+    if (statFileAfter.is_open()) {
+        std::string line;
+        while (std::getline(statFileAfter, line)) {
+            if (line.substr(0, 6) == "VmRSS:") {
+                std::string value = line.substr(6);
+                memoryUsage = std::stoull(value) * 1024;
+                break;
             }
-            statFileAfter.close();
         }
+        statFileAfter.close();
+    }
 
-        auto eval_dataset = EvalDataset::Load(dataset_path);
+    auto eval_dataset = EvalDataset::Load(dataset_path);
 
-        // search
-        auto search_start = std::chrono::steady_clock::now();
-        int64_t correct = 0;
-        int64_t total = eval_dataset->GetNumberOfQuery();
-        spdlog::debug("total: " + std::to_string(total));
-        std::vector<DatasetPtr> results;
-        int i = 2025;
-            auto query = Dataset::Make();
-            query->NumElements(1)->Dim(eval_dataset->GetDim())->Owner(false);
+    // search
+    auto search_start = std::chrono::steady_clock::now();
+    int64_t correct = 0;
+    int64_t total = eval_dataset->GetNumberOfQuery();
+    spdlog::debug("total: " + std::to_string(total));
+    std::vector<DatasetPtr> results;
+    int i = 2025;
+    auto query = Dataset::Make();
+    query->NumElements(1)->Dim(eval_dataset->GetDim())->Owner(false);
 
-            if (eval_dataset->GetTestDataType() == vsag::DATATYPE_FLOAT32) {
-                query->Float32Vectors((const float*)eval_dataset->GetOneTest(i));
-            } else if (eval_dataset->GetTestDataType() == vsag::DATATYPE_INT8) {
-                query->Int8Vectors((const int8_t*)eval_dataset->GetOneTest(i));
-            }
-            auto filter = [&eval_dataset, i](int64_t base_id) {
-                return not eval_dataset->IsMatch(i, base_id);
-            };
+    if (eval_dataset->GetTestDataType() == vsag::DATATYPE_FLOAT32) {
+        query->Float32Vectors((const float*)eval_dataset->GetOneTest(i));
+    } else if (eval_dataset->GetTestDataType() == vsag::DATATYPE_INT8) {
+        query->Int8Vectors((const int8_t*)eval_dataset->GetOneTest(i));
+    }
+    auto filter = [&eval_dataset, i](int64_t base_id) {
+        return not eval_dataset->IsMatch(i, base_id);
+    };
 
-            auto result = index->KnnSearch(query, 100, pagraph_search_parameters, filter);
+    auto result = index->KnnSearch(query, 100, pagraph_search_parameters, filter);
 
-            if (not result.has_value()) {
-                std::cerr << "query error: " << result.error().message << std::endl;
-                exit(-1);
-            }
-            results.emplace_back(result.value());
+    if (not result.has_value()) {
+        std::cerr << "query error: " << result.error().message << std::endl;
+        exit(-1);
+    }
+    results.emplace_back(result.value());
 
-        auto search_finish = std::chrono::steady_clock::now();
+    auto search_finish = std::chrono::steady_clock::now();
 
-        int top_k = 100;
-        // calculate recall
-            // k@k
-            int64_t* neighbors = eval_dataset->GetNeighbors(i);
-            const int64_t* ground_truth = results[i]->GetIds();
-            auto hit_result = get_intersection(neighbors, ground_truth, top_k, top_k);
-            correct += hit_result.size();
+    int top_k = 100;
+    // calculate recall
+    // k@k
+    int64_t* neighbors = eval_dataset->GetNeighbors(i);
+    const int64_t* ground_truth = results[i]->GetIds();
+    auto hit_result = get_intersection(neighbors, ground_truth, top_k, top_k);
+    correct += hit_result.size();
 
     return 0;
 }

@@ -32,7 +32,7 @@ using namespace nlohmann;
 using namespace spdlog;
 using namespace vsag;
 using namespace vsag::eval;
-// #define ODEBUG
+#define ODEBUG
 
 json
 run_test(const std::string& index_name,
@@ -41,8 +41,8 @@ run_test(const std::string& index_name,
          const std::string& search_parameters,
          const std::string& dataset_path);
 
-const static std::string DIR_NAME = "/tmp/test_diskann_gist/";
-const static std::string META_DATA_FILE = "diskann_meta.data";
+const static std::string DIR_NAME = "/data/index/test_ugraph_sift/";
+const static std::string META_DATA_FILE = "uragh_sift_meta.data";
 
 int
 main(int argc, char* argv[]) {
@@ -127,7 +127,6 @@ public:
 #else
             base->Int8Vectors((const int8_t*)eval_dataset->GetTrain());
 #endif
-
         }
         auto build_start = std::chrono::steady_clock::now();
         if (auto buildindex = index->Build(base); not buildindex.has_value()) {

@@ -15,17 +15,17 @@
 
 #include "vsag/factory.h"
 
-#include <iostream>
 #include <algorithm>
 #include <cstdint>
 #include <exception>
 #include <fstream>
 #include <ios>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <string>
-#include "io/direct_io_object.h"
 
+#include "io/direct_io_object.h"
 #include "safe_thread_pool.h"
 #include "vsag/engine.h"
 #include "vsag/options.h"
@@ -102,14 +102,11 @@ public:
                                   std::shared_ptr<SafeThreadPool> pool = nullptr)
         : base_offset_(base_offset), size_(size), pool_(pool) {
         rfd_ = open(filename.c_str(), O_CREAT | O_RDWR | O_DIRECT, 0644);
-
-
     }
 
     ~LocalFileAsyncReader() {
         std::cout << "#total_io_count: " << total_io_count_
-                  << ", #total_io_size: " << total_io_size_ / (1024 * 1024) << "MB"
-                  << std::endl;
+                  << ", #total_io_size: " << total_io_size_ / (1024 * 1024) << "MB" << std::endl;
     }
 
     void
@@ -163,8 +160,5 @@ Factory::CreateLocalFileReader(const std::string& filename, int64_t base_offset,
     return std::make_shared<LocalFileAsyncReader>(filename, base_offset, size);
     // return std::make_shared<LocalFileReader>(filename, base_offset, size);
 }
-
-
-
 
 }  // namespace vsag

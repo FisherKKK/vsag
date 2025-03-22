@@ -66,7 +66,7 @@ main(int argc, char** argv) {
             "pq_dims": 9,
             "use_pq_search": true,
             "use_async_io": true,
-            "use_bsa": true
+            "use_bsa": false
         }
     }
     )";

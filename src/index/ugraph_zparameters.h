@@ -14,14 +14,31 @@
 // limitations under the License.
 
 #pragma once
-#include "parameter.h"
+#include <data_cell/flatten_datacell_parameter.h>
+#include <data_cell/graph_interface_parameter.h>
+#include <impl/odescent_graph_parameter.h>
 
 #include <memory>
 
+#include "parameter.h"
+
 namespace vsag {
 class UGraphParameter : public Parameter {
+public:
+    void
+    FromJson(const JsonType& json) override;
 
+    JsonType
+    ToJson() override;
+
+public:
+    GraphInterfaceParamPtr graph_param_{nullptr};
+    FlattenDataCellParamPtr graph_flatten_codes_param_{nullptr};
+    ODescentParameterPtr odescent_param_{nullptr};
+    bool use_quantization_{false};
+    FlattenDataCellParamPtr low_precision_graph_flatten_codes_param_{nullptr};
+    std::string bucket_file_{"/tmp/buckets.bin"};
 };
 
 using UgraphParameterPtr = std::shared_ptr<UGraphParameter>;
-}
+}  // namespace vsag

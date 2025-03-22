@@ -215,10 +215,12 @@ PAGraph::Build(const DatasetPtr& base) {
     if (use_quantization_) {
         std::cout << "Quantization base codes..." << std::endl;
         graph_flatten_codes_.reset();
-        low_precision_graph_flatten_codes_ = FlattenInterface::MakeInstance(low_precision_graph_flatten_codes_param_, common_param_);
-        low_precision_graph_flatten_codes_->Train(base->GetFloat32Vectors(), base->GetNumElements());
-        for (auto graph_id: graph_ids_) {
-            const auto *vec =  base_vectors + graph_id * dim_;
+        low_precision_graph_flatten_codes_ =
+            FlattenInterface::MakeInstance(low_precision_graph_flatten_codes_param_, common_param_);
+        low_precision_graph_flatten_codes_->Train(base->GetFloat32Vectors(),
+                                                  base->GetNumElements());
+        for (auto graph_id : graph_ids_) {
+            const auto* vec = base_vectors + graph_id * dim_;
             low_precision_graph_flatten_codes_->InsertVector(vec);
         }
     }
@@ -274,8 +276,8 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         flatten_codes = low_precision_graph_flatten_codes_;
     }
 
-    auto graph_id_result = searcher_->Search(
-        graph_, flatten_codes, vl, query->GetFloat32Vectors(), search_param);
+    auto graph_id_result =
+        searcher_->Search(graph_, flatten_codes, vl, query->GetFloat32Vectors(), search_param);
 
     Vector<uint8_t> issue_data(allocator_);
 
@@ -301,7 +303,7 @@ PAGraph::KnnSearch(const DatasetPtr& query,
             auto inner_id = graph_ids_[centroid_id];
             auto& bucket = buckets_->at(centroid_id);
             stream << label_table_->GetLabelById(inner_id) << " ";
-            for (auto id: *bucket) {
+            for (auto id : *bucket) {
                 stream << label_table_->GetLabelById(id) << " ";
             }
             stream << std::endl;
@@ -310,8 +312,6 @@ PAGraph::KnnSearch(const DatasetPtr& query,
         exit(0);
     }
 #endif
-
-
 
     while (graph_id_result.size() > 0) {
         auto [centroid_dist, centroid_id] = graph_id_result.top();
@@ -463,11 +463,12 @@ PAGraph::Deserialize(StreamReader& reader) {
 
     // Graph
     if (use_quantization_) {
-        low_precision_graph_flatten_codes_ = FlattenInterface::MakeInstance(low_precision_graph_flatten_codes_param_, common_param_);
+        low_precision_graph_flatten_codes_ =
+            FlattenInterface::MakeInstance(low_precision_graph_flatten_codes_param_, common_param_);
         low_precision_graph_flatten_codes_->Deserialize(reader);
     } else {
         graph_flatten_codes_ =
-        FlattenInterface::MakeInstance(graph_flatten_codes_param_, common_param_);
+            FlattenInterface::MakeInstance(graph_flatten_codes_param_, common_param_);
         graph_flatten_codes_->Deserialize(reader);
     }
     graph_ = GraphInterface::MakeInstance(graph_param_, common_param_);
@@ -486,7 +487,7 @@ PAGraph::Deserialize(StreamReader& reader) {
         int64_t bucket_num = buckets_->size();
         int64_t empty_num = 0;
         for (int64_t i = 0; i < bucket_num; i++) {
-            auto &bucket = buckets_->at(i);
+            auto& bucket = buckets_->at(i);
             if (bucket->empty()) {
                 empty_num += 1;
             }
@@ -716,7 +717,6 @@ PAGraph::select_partition_by_heuristic(MaxHeap& candidates) {
             auto bucket_size = buckets_->at(graph_id)->size();
             auto score = match_score(dist, radius, bucket_size, capacity_);
 
-
             if (probability < score || (score != 0.f && graph_ids_.size() > num_sample_ - 5))
                 closest_queue.emplace(-dist, graph_id);
 
@@ -783,7 +783,7 @@ PAGraph::match_score(float d, float r, size_t cur_bucket_size, size_t bucket_cap
         bucket_factor = 0.99f;
     } else if (bucket_ratio <= 0.8f) {
         bucket_factor = 0.98f;
-    }else if (bucket_ratio <= 0.9) {
+    } else if (bucket_ratio <= 0.9) {
         bucket_factor = 0.1f;
     } else {
         bucket_factor = 0.0f;
