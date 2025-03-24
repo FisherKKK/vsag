@@ -18,7 +18,7 @@
 #include "utils/util_functions.h"
 #include "vsag/factory.h"
 
-// #define OMYDEBUG
+#define OMYDEBUG
 
 namespace vsag {
 
@@ -137,6 +137,16 @@ UGraph::Build(const DatasetPtr& base) {
 
     Vector<float> radius(graph_size, std::numeric_limits<float>::max(), allocator_);
 
+    auto weighted_distances = [](const Vector<float> &sorted_dists, float alpha) {
+        float weight_sum = .0f, dist_sum = .0f, cur_weight = 1.f;
+        for (auto d : sorted_dists) {
+            dist_sum += cur_weight * d;
+            weight_sum += cur_weight;
+            cur_weight *= alpha;
+        }
+        return dist_sum / weight_sum;
+    };
+
     for (auto i = 0; i < graph_size; i++) {
         Vector<InnerIdType> nns(allocator_);
         graph_->GetNeighbors(i, nns);
@@ -153,16 +163,42 @@ UGraph::Build(const DatasetPtr& base) {
             edges.emplace(d, i, nn);
             distances.emplace_back(d);
         }
+
         std::sort(distances.begin(), distances.end());
-        radius[i] = distances[distances.size() * 0.2];
+        float r = .0f;
+        r = weighted_distances(distances, 0.1f);
+
+
+        // auto distance_size = std::min((int) distances.size(), 2);
+        // assert(distance_size > 0);
+        //
+        // float r = 0.f;
+        // for (auto di = 0; di < distance_size; di++) {
+        //     r += distances[di];
+        // }
+        // r /= distance_size;
+
+        radius[i] = r;
+        // auto size = std::min(distance_size , 2);
+        // radius[i] = distances[size - 1];
     }
+
+#ifdef OMYDEBUG
+    {
+        std::ofstream rd_writer("/tmp/radius_uc.txt", std::ios::out);
+        for (auto r: radius) {
+            rd_writer << r << " ";
+        }
+    }
+#endif
+
 
     // UnionSet us(graph_size, allocator_);
     // auto edges_size = edges.size();
 
     // Compress half edges for performance test
     float last_dist = 0.f, history = 0.f, delta = 0.1f;
-    int64_t count = 0, count_threshold = 128;
+    int64_t count = 0, count_threshold = 8;
 
 
     // std::ofstream edges_writer("/tmp/edges.txt", std::ios_base::out);
@@ -175,7 +211,7 @@ UGraph::Build(const DatasetPtr& base) {
         // Select which edge should be aggregate
 
         auto &src_rd = radius[src], &dest_rd = radius[dest];
-        if (count < count_threshold || (d < dest_rd && d < src_rd)) {
+        if (count < count_threshold || (src_rd + dest_rd >= d && src_rd * src_rd + dest_rd * dest_rd >= src_rd * dest_rd + d * d)) {
             us.Union(src_root, dest_root);
             // src_rd = d;
             // dest_rd = d;
@@ -293,6 +329,77 @@ UGraph::Build(const DatasetPtr& base) {
     refine_graph_builder.Build();
     refine_graph_builder.SaveGraph(graph_);
 
+
+#ifdef OMYDEBUG
+    {
+        auto rgraph_size = graph_->TotalCount();
+        radius.resize(rgraph_size);
+        for (auto i = 0; i < rgraph_size; i++) {
+            Vector<InnerIdType> nns(allocator_);
+            graph_->GetNeighbors(i, nns);
+            // auto nn_size = nns.size() > 2 ? 2 : nns.size();
+            //
+            // for (int nni = 0; nni < nn_size; nni++) {
+            //     us.Union(i, nns[nni]);
+            // }
+            Vector<float> distances(allocator_);
+            distances.reserve(32);
+
+            for (auto nn : nns) {
+                auto d = graph_flatten_codes_->ComputePairVectors(i, nn);
+                edges.emplace(d, i, nn);
+                distances.emplace_back(d);
+            }
+
+            std::sort(distances.begin(), distances.end());
+            float r = .0f;
+            r = weighted_distances(distances, 0.45f);
+
+
+            // auto distance_size = std::min((int) distances.size(), 2);
+            // assert(distance_size > 0);
+            //
+            // float r = 0.f;
+            // for (auto di = 0; di < distance_size; di++) {
+            //     r += distances[di];
+            // }
+            // r /= distance_size;
+
+            radius[i] = r;
+            // auto size = std::min(distance_size , 2);
+            // radius[i] = distances[size - 1];
+        }
+        std::ofstream rd_writer("/tmp/radius_rc.txt", std::ios::out);
+        for (auto r: radius) {
+            rd_writer << r << " ";
+        }
+    }
+#endif
+
+
+    // if use quantization code
+    // or use mix-up precision graph
+    if (use_quantization_) {
+        graph_flatten_codes_.reset();
+        low_precision_graph_flatten_codes_ = FlattenInterface::MakeInstance(low_precision_graph_flatten_codes_param_, common_param_);
+        low_precision_graph_flatten_codes_->Train(base_vecs, num_elements);
+        for (auto core : core_ids_) {
+            const auto* core_vec = base_vecs + core * dim_;
+            low_precision_graph_flatten_codes_->InsertVector(core_vec);
+        }
+    }
+
+#ifdef OMYDEBUG
+    {
+        std::ofstream rd_writer("/tmp/bucket_size.txt", std::ios::out);
+        for (int i = 0; i < core_ids_.size(); i++) {
+            auto& members_ptr = buckets_->at(i);
+            rd_writer << members_ptr->size() << " ";
+        }
+    }
+#endif
+
+
     // Save the bucket
     std::cout << "Saving bucket..." << std::endl;
     std::ofstream stream(bucket_file_, std::ios_base::out | std::ios_base::binary);
@@ -303,10 +410,12 @@ UGraph::Build(const DatasetPtr& base) {
         auto& members_ptr = buckets_->at(i);
         auto& members = *members_ptr;
 
-        for (auto m_i = members.begin(); m_i != members.end(); ++m_i) {
-            if (*m_i == core_id) {
-                members.erase(m_i);
-                break;
+        if (!use_quantization_) {
+            for (auto m_i = members.begin(); m_i != members.end(); ++m_i) {
+                if (*m_i == core_id) {
+                    members.erase(m_i);
+                    break;
+                }
             }
         }
 
@@ -597,13 +706,13 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
                 "type": "block_memory_io",
                 "file_path": "./default_file_path"
             },
-            "max_degree": 16,
+            "max_degree": 32,
             "init_capacity": 100
         },
         "odescent": {
-            "max_degree": 16,
+            "max_degree": 32,
             "alpha": 1.2,
-            "graph_iter_turn": 30,
+            "graph_iter_turn": 50,
             "neighbor_sample_rate": 0.3,
             "min_in_degree": 4,
             "build_block_size": 100
@@ -633,7 +742,7 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
             "use_quantization": false,
             "build_thread_count": 100,
             "capacity": 48,
-            "bucket_file": "/data/index/test_ugraph_sift/sift_buckets.bin"
+            "bucket_file": "/tmp/test_ugraph_sift/sift_buckets.bin"
         }
     })";
 

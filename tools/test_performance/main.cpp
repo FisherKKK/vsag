@@ -32,7 +32,7 @@ using namespace nlohmann;
 using namespace spdlog;
 using namespace vsag;
 using namespace vsag::eval;
-#define ODEBUG
+// #define ODEBUG
 
 json
 run_test(const std::string& index_name,
@@ -41,7 +41,7 @@ run_test(const std::string& index_name,
          const std::string& search_parameters,
          const std::string& dataset_path);
 
-const static std::string DIR_NAME = "/data/index/test_ugraph_sift/";
+const static std::string DIR_NAME = "/tmp/test_ugraph_sift/";
 const static std::string META_DATA_FILE = "uragh_sift_meta.data";
 
 int
