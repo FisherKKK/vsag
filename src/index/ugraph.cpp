@@ -14,6 +14,8 @@
 // limitations under the License.
 #include "ugraph.h"
 
+#include "impl/pruning_strategy.h"
+
 #include "impl/odescent_graph_builder.h"
 #include "utils/util_functions.h"
 #include "vsag/factory.h"
@@ -93,7 +95,7 @@ UGraph::UGraph(const UgraphParameterPtr& ugraph_param, const IndexCommonParam& c
     pool_ = std::make_unique<VisitedListPool>(
         1, common_param.allocator_.get(), max_capacity_, common_param_.allocator_.get());
     searcher_ = std::make_unique<BasicSearcher>(common_param_);
-    quantizer_ = std::make_unique<FP32Quantizer<MetricType::METRIC_TYPE_L2SQR>>(
+    quantizer_ = std::make_unique<FP32Quantizer<MetricType::METRIC_TYPE_IP>>(
         common_param.dim_,
         common_param.allocator_.get());  // TODO: quantizer for bucket calculation
 
@@ -122,12 +124,14 @@ UGraph::Build(const DatasetPtr& base) {
     graph_ = GraphInterface::MakeInstance(graph_param_, common_param_);
 
     // Insert vector
-    graph_flatten_codes_->BatchInsertVector(base_vecs, num_elements);
+    // graph_flatten_codes_->BatchInsertVector(base_vecs, num_elements);
 
-    ODescent graph_builder(
-        odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
-    graph_builder.Build();
-    graph_builder.SaveGraph(graph_);
+    // ODescent graph_builder(
+    //     odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
+    // graph_builder.Build();
+    // graph_builder.SaveGraph(graph_);
+
+    ugraph_add(base);
 
     auto graph_size = graph_->TotalCount();
     MinEdgeHeap edges(allocator_);
@@ -166,7 +170,7 @@ UGraph::Build(const DatasetPtr& base) {
 
         std::sort(distances.begin(), distances.end());
         float r = .0f;
-        r = weighted_distances(distances, 0.1f);
+        r = weighted_distances(distances, 0.5f);
 
 
         // auto distance_size = std::min((int) distances.size(), 2);
@@ -198,7 +202,7 @@ UGraph::Build(const DatasetPtr& base) {
 
     // Compress half edges for performance test
     float last_dist = 0.f, history = 0.f, delta = 0.1f;
-    int64_t count = 0, count_threshold = 8;
+    int64_t count = 0, count_threshold = 64;
 
 
     // std::ofstream edges_writer("/tmp/edges.txt", std::ios_base::out);
@@ -682,6 +686,56 @@ UGraph::Deserialize(StreamReader& reader) {
     resize(num_elements_);
 }
 
+
+void
+UGraph::ugraph_add(const DatasetPtr& base) {
+    auto num_elements = base->GetNumElements();
+    auto dim = base->GetDim();
+    const auto* base_vecs = base->GetFloat32Vectors();
+
+    graph_flatten_codes_->BatchInsertVector(base_vecs, num_elements);
+
+    InnerSearchParam search_param;
+    search_param.ef = 200;
+    search_param.topk = odescent_param_->max_degree;
+    search_param.search_mode = KNN_SEARCH;
+
+    auto empty_mutex = std::make_shared<EmptyMutex>();
+
+    for (InnerIdType i = 0; i < num_elements; i++) {
+
+        const auto* vec = base_vecs + i * dim;
+
+        if (graph_->TotalCount() == 0) {
+            graph_->InsertNeighborsById(
+                i, Vector<InnerIdType>(common_param_.allocator_.get()));
+            entry_point_ = i;
+        } else {
+            auto vl = pool_->TakeOne();
+
+            search_param.ep = entry_point_;
+            auto results = searcher_->Search(graph_,
+                                             graph_flatten_codes_,
+                                             vl,
+                                             vec,
+                                             search_param);
+            pool_->ReturnOne(vl);
+
+            mutually_connect_new_element(i,
+                                         results,
+                                         graph_,
+                                         graph_flatten_codes_,
+                                         empty_mutex,
+                                         common_param_.allocator_.get());
+            entry_point_ = i;
+        }
+    }
+
+    entry_point_ = 0;
+
+}
+
+
 void
 UGraph::resize(uint64_t new_size) {
     auto cur_size = this->max_capacity_;
@@ -706,15 +760,15 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
                 "type": "block_memory_io",
                 "file_path": "./default_file_path"
             },
-            "max_degree": 32,
+            "max_degree": 48,
             "init_capacity": 100
         },
         "odescent": {
-            "max_degree": 32,
+            "max_degree": 48,
             "alpha": 1.2,
             "graph_iter_turn": 50,
-            "neighbor_sample_rate": 0.3,
-            "min_in_degree": 4,
+            "neighbor_sample_rate": 0.5,
+            "min_in_degree": 8,
             "build_block_size": 100
         },
         "base_codes": {
@@ -742,7 +796,7 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
             "use_quantization": false,
             "build_thread_count": 100,
             "capacity": 48,
-            "bucket_file": "/tmp/test_ugraph_sift/sift_buckets.bin"
+            "bucket_file": "/data/index/test_ugraph_s256/s256_buckets.bin"
         }
     })";
 

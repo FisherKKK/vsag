@@ -97,6 +97,8 @@ private:
     void
     resize(uint64_t new_size);
 
+    void ugraph_add(const DatasetPtr& data);
+
 public:
     mutable uint64_t io_total_count_ = 0;
     mutable uint64_t io_total_size_ = 0;  // in bytes
@@ -136,7 +138,7 @@ private:
     std::shared_ptr<SafeThreadPool> thread_pool_{nullptr};
     std::unique_ptr<BasicSearcher> searcher_{nullptr};
 
-    std::unique_ptr<Quantizer<FP32Quantizer<>>> quantizer_;
+    std::unique_ptr<Quantizer<FP32Quantizer<MetricType::METRIC_TYPE_IP>>> quantizer_;
 
     FlattenDataCellParamPtr low_precision_graph_flatten_codes_param_{nullptr};
     FlattenInterfacePtr low_precision_graph_flatten_codes_{nullptr};
