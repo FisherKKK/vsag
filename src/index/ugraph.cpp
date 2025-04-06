@@ -95,7 +95,7 @@ UGraph::UGraph(const UgraphParameterPtr& ugraph_param, const IndexCommonParam& c
     pool_ = std::make_unique<VisitedListPool>(
         1, common_param.allocator_.get(), max_capacity_, common_param_.allocator_.get());
     searcher_ = std::make_unique<BasicSearcher>(common_param_);
-    quantizer_ = std::make_unique<FP32Quantizer<MetricType::METRIC_TYPE_IP>>(
+    quantizer_ = std::make_unique<FP32Quantizer<>>(
         common_param.dim_,
         common_param.allocator_.get());  // TODO: quantizer for bucket calculation
 
@@ -124,14 +124,14 @@ UGraph::Build(const DatasetPtr& base) {
     graph_ = GraphInterface::MakeInstance(graph_param_, common_param_);
 
     // Insert vector
-    // graph_flatten_codes_->BatchInsertVector(base_vecs, num_elements);
+    graph_flatten_codes_->BatchInsertVector(base_vecs, num_elements);
 
-    // ODescent graph_builder(
-    //     odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
-    // graph_builder.Build();
-    // graph_builder.SaveGraph(graph_);
+    ODescent graph_builder(
+        odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
+    graph_builder.Build();
+    graph_builder.SaveGraph(graph_);
 
-    ugraph_add(base);
+    // ugraph_add(base);
 
     auto graph_size = graph_->TotalCount();
     MinEdgeHeap edges(allocator_);
@@ -140,6 +140,11 @@ UGraph::Build(const DatasetPtr& base) {
     auto edges_size = edges.size();
 
     Vector<float> radius(graph_size, std::numeric_limits<float>::max(), allocator_);
+
+    float upper_bound = std::numeric_limits<float>::max();
+    Vector<float> upper_bound_distances(allocator_);
+    upper_bound_distances.reserve(graph_size);
+
 
     auto weighted_distances = [](const Vector<float> &sorted_dists, float alpha) {
         float weight_sum = .0f, dist_sum = .0f, cur_weight = 1.f;
@@ -162,6 +167,18 @@ UGraph::Build(const DatasetPtr& base) {
         Vector<float> distances(allocator_);
         distances.reserve(32);
 
+        // Union closest to each other
+        {
+            auto nearest = nns[0];
+            Vector<InnerIdType> nearest_nns(allocator_);
+            graph_->GetNeighbors(nearest, nearest_nns);
+            auto nearest_nearest = nearest_nns[0];
+            if (nearest_nearest == nearest) {
+                std::cout << "Merge nearest each other" << std::endl;
+                us.Union(nearest, nearest_nearest);
+            }
+        }
+
         for (auto nn : nns) {
             auto d = graph_flatten_codes_->ComputePairVectors(i, nn);
             edges.emplace(d, i, nn);
@@ -170,7 +187,7 @@ UGraph::Build(const DatasetPtr& base) {
 
         std::sort(distances.begin(), distances.end());
         float r = .0f;
-        r = weighted_distances(distances, 0.5f);
+        r = weighted_distances(distances, 0.25f);
 
 
         // auto distance_size = std::min((int) distances.size(), 2);
@@ -185,7 +202,12 @@ UGraph::Build(const DatasetPtr& base) {
         radius[i] = r;
         // auto size = std::min(distance_size , 2);
         // radius[i] = distances[size - 1];
+        upper_bound_distances.emplace_back(r);
     }
+
+    std::sort(upper_bound_distances.begin(), upper_bound_distances.end());
+    upper_bound = weighted_distances(upper_bound_distances, 0.5f);
+    std::cout << "Upper bound radius: " << upper_bound << std::endl;
 
 #ifdef OMYDEBUG
     {
@@ -202,7 +224,7 @@ UGraph::Build(const DatasetPtr& base) {
 
     // Compress half edges for performance test
     float last_dist = 0.f, history = 0.f, delta = 0.1f;
-    int64_t count = 0, count_threshold = 64;
+    int64_t count = 0, count_threshold = 512;
 
 
     // std::ofstream edges_writer("/tmp/edges.txt", std::ios_base::out);
@@ -311,7 +333,9 @@ UGraph::Build(const DatasetPtr& base) {
         union_core[ci] = new_core;
         buckets_offset_[ci] = cur_offset;
         assert(buckets_->size() >= 1);
-        cur_offset += (static_cast<int64_t>(bucket.size()) - 1) * code_size_;
+
+        int64_t bk_size = use_quantization_ ? bucket.size() : bucket.size() - 1;
+        cur_offset += bk_size * code_size_;
     }
 
     core_ids_.swap(union_core);
@@ -357,7 +381,7 @@ UGraph::Build(const DatasetPtr& base) {
 
             std::sort(distances.begin(), distances.end());
             float r = .0f;
-            r = weighted_distances(distances, 0.45f);
+            r = weighted_distances(distances, 0.3f);
 
 
             // auto distance_size = std::min((int) distances.size(), 2);
@@ -387,6 +411,8 @@ UGraph::Build(const DatasetPtr& base) {
         graph_flatten_codes_.reset();
         low_precision_graph_flatten_codes_ = FlattenInterface::MakeInstance(low_precision_graph_flatten_codes_param_, common_param_);
         low_precision_graph_flatten_codes_->Train(base_vecs, num_elements);
+
+
         for (auto core : core_ids_) {
             const auto* core_vec = base_vecs + core * dim_;
             low_precision_graph_flatten_codes_->InsertVector(core_vec);
@@ -760,15 +786,15 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
                 "type": "block_memory_io",
                 "file_path": "./default_file_path"
             },
-            "max_degree": 48,
+            "max_degree":64,
             "init_capacity": 100
         },
         "odescent": {
-            "max_degree": 48,
+            "max_degree": 64,
             "alpha": 1.2,
-            "graph_iter_turn": 50,
-            "neighbor_sample_rate": 0.5,
-            "min_in_degree": 8,
+            "graph_iter_turn": 30,
+            "neighbor_sample_rate": 0.3,
+            "min_in_degree": 4,
             "build_block_size": 100
         },
         "base_codes": {
@@ -793,10 +819,10 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
             }
         },
         "build_params": {
-            "use_quantization": false,
+            "use_quantization": true,
             "build_thread_count": 100,
             "capacity": 48,
-            "bucket_file": "/data/index/test_ugraph_s256/s256_buckets.bin"
+            "bucket_file": "/tmp/test_ugraph_gist/gist_buckets.bin"
         }
     })";
 

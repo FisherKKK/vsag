@@ -138,7 +138,7 @@ private:
     std::shared_ptr<SafeThreadPool> thread_pool_{nullptr};
     std::unique_ptr<BasicSearcher> searcher_{nullptr};
 
-    std::unique_ptr<Quantizer<FP32Quantizer<MetricType::METRIC_TYPE_IP>>> quantizer_;
+    std::unique_ptr<Quantizer<FP32Quantizer<>>> quantizer_;
 
     FlattenDataCellParamPtr low_precision_graph_flatten_codes_param_{nullptr};
     FlattenInterfacePtr low_precision_graph_flatten_codes_{nullptr};
