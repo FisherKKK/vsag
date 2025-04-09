@@ -105,6 +105,8 @@ public:
     mutable uint64_t query_count_ = 0;
     mutable uint64_t cmp_count_ = 0;  // dist cmp times
 
+    mutable std::vector<int64_t> appear_; // recall times of bucket
+
 private:
 private:
     IndexCommonParam common_param_;

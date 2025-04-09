@@ -20,7 +20,7 @@
 #include "utils/util_functions.h"
 #include "vsag/factory.h"
 
-#define OMYDEBUG
+// #define OMYDEBUG
 
 namespace vsag {
 
@@ -156,6 +156,7 @@ UGraph::Build(const DatasetPtr& base) {
         return dist_sum / weight_sum;
     };
 
+
     for (auto i = 0; i < graph_size; i++) {
         Vector<InnerIdType> nns(allocator_);
         graph_->GetNeighbors(i, nns);
@@ -187,7 +188,7 @@ UGraph::Build(const DatasetPtr& base) {
 
         std::sort(distances.begin(), distances.end());
         float r = .0f;
-        r = weighted_distances(distances, 0.25f);
+        r = weighted_distances(distances, 0.5f);
 
 
         // auto distance_size = std::min((int) distances.size(), 2);
@@ -206,7 +207,7 @@ UGraph::Build(const DatasetPtr& base) {
     }
 
     std::sort(upper_bound_distances.begin(), upper_bound_distances.end());
-    upper_bound = weighted_distances(upper_bound_distances, 0.5f);
+    upper_bound = weighted_distances(upper_bound_distances, 0.2f);
     std::cout << "Upper bound radius: " << upper_bound << std::endl;
 
 #ifdef OMYDEBUG
@@ -224,7 +225,7 @@ UGraph::Build(const DatasetPtr& base) {
 
     // Compress half edges for performance test
     float last_dist = 0.f, history = 0.f, delta = 0.1f;
-    int64_t count = 0, count_threshold = 512;
+    int64_t count = 0, count_threshold = 32;
 
 
     // std::ofstream edges_writer("/tmp/edges.txt", std::ios_base::out);
@@ -237,8 +238,11 @@ UGraph::Build(const DatasetPtr& base) {
         // Select which edge should be aggregate
 
         auto &src_rd = radius[src], &dest_rd = radius[dest];
-        if (count < count_threshold || (src_rd + dest_rd >= d && src_rd * src_rd + dest_rd * dest_rd >= src_rd * dest_rd + d * d)) {
+
+        // r1^2 + r2^2 - d^2 >= 2 * r1 * r2 * 1.7 / 2
+        if (d < 1e-6 || count < count_threshold || (src_rd + dest_rd >= d && src_rd * src_rd + dest_rd * dest_rd >= 1.414f * src_rd * dest_rd + d * d)) {
             us.Union(src_root, dest_root);
+            // src_rd = dest_rd = (src_rd + dest_rd + d) / 2.f;
             // src_rd = d;
             // dest_rd = d;
         }
@@ -248,7 +252,7 @@ UGraph::Build(const DatasetPtr& base) {
     // Store the union graph id in union_core
     // [root1] [root2] [root3] ... [rootn]
     Vector<InnerIdType> union_core(allocator_);
-    union_core.reserve(graph_size / 5);
+    union_core.reserve(graph_size);
 
     // Set for union_core unique record
     // [root1] -- 1, [root2] -- 2, [root3] -- 3, mapping
@@ -256,7 +260,7 @@ UGraph::Build(const DatasetPtr& base) {
 
     // Buckets record the core[id1, id2, id3, ..., ]
     buckets_ = std::make_shared<InnerIdBucket>(allocator_);
-    buckets_->reserve(graph_size / 5);
+    buckets_->reserve(graph_size);
 
     // Sets for edge storage
     // Vector<std::shared_ptr<UnorderedSet<InnerIdType>>> linklist(allocator_);
@@ -265,8 +269,9 @@ UGraph::Build(const DatasetPtr& base) {
     // Keep graph
     for (InnerIdType i = 0; i < graph_size; i++) {
         auto root = us.Find(i);
-        Vector<InnerIdType> nns(allocator_);
-        graph_->GetNeighbors(i, nns);
+        // assert(root == i);
+        // Vector<InnerIdType> nns(allocator_);
+        // graph_->GetNeighbors(i, nns);
         InnerIdType index = 0;
 
         if (unique_core.count(root)) {
@@ -295,6 +300,8 @@ UGraph::Build(const DatasetPtr& base) {
     // Construct core --> unique id
     auto compute_centroid = [&](Vector<InnerIdType>& partition) {
         auto partition_size = partition.size();
+
+        if (partition_size == 1) return partition[0];
 
         Vector<float> sum(dim_, 0.f, allocator_);
         for (auto pid : partition) {
@@ -408,6 +415,7 @@ UGraph::Build(const DatasetPtr& base) {
     // if use quantization code
     // or use mix-up precision graph
     if (use_quantization_) {
+        std::cout << "use quantization..." << std::endl;
         graph_flatten_codes_.reset();
         low_precision_graph_flatten_codes_ = FlattenInterface::MakeInstance(low_precision_graph_flatten_codes_param_, common_param_);
         low_precision_graph_flatten_codes_->Train(base_vecs, num_elements);
@@ -496,6 +504,8 @@ UGraph::KnnSearch(const DatasetPtr& query,
     auto graph_id_result =
         searcher_->Search(graph_, flatten_codes, vl, query->GetFloat32Vectors(), search_param);
 
+    vl->Reset();
+
     auto issue_all_size = 0;
     auto result_copy = graph_id_result;
 
@@ -534,6 +544,9 @@ UGraph::KnnSearch(const DatasetPtr& query,
         auto offset = buckets_offset_[centroid_id];
         if (issue_size == 0)
             continue;
+
+
+        appear_[centroid_id] += 1;
 
         auto dest = issue_data.data() + issue_data_off;
         issue_data_off += issue_size;
@@ -643,6 +656,24 @@ UGraph::Serialize(StreamWriter& writer) const {
     StreamWriter::WriteVector(writer, buckets_offset_);
 }
 
+void bfs(GraphInterfacePtr &graph, InnerIdType entry, UnorderedSet<InnerIdType>& visited, Allocator *allocator) {
+    Deque<InnerIdType> q(allocator);
+    q.emplace_back(entry);
+    while (q.size() > 0) {
+        auto top = q.front();
+        q.pop_front();
+        visited.emplace(top);
+        Vector<InnerIdType> nns(allocator);
+        graph->GetNeighbors(top, nns);
+        for (auto nn: nns) {
+            if (!visited.count(nn)) {
+                q.emplace_back(nn);
+            }
+        }
+    }
+};
+
+
 void
 UGraph::Deserialize(StreamReader& reader) {
     StreamReader::ReadObj(reader, dim_);
@@ -683,15 +714,43 @@ UGraph::Deserialize(StreamReader& reader) {
     graph_ = GraphInterface::MakeInstance(graph_param_, common_param_);
     graph_->Deserialize(reader);
 
+
+    /* Graph connectivity test
+    {
+        UnorderedSet<InnerIdType> visited(allocator_);
+        // std::function<void(InnerIdType)> dfs = [&](InnerIdType entry) -> void {
+        //     if (visited.count(entry) == 0) {
+        //         Vector<InnerIdType> nns(allocator_);
+        //         graph_->GetNeighbors(entry, nns);
+        //         visited.insert(entry);
+        //         for (auto nn: nns) {
+        //             dfs(nn);
+        //         }
+        //     }
+        // };
+        //
+        // dfs(entry_point_);
+        bfs(graph_, entry_point_, visited, allocator_);
+
+        std::cout << "Graph Size: " << core_ids_.size()
+                  << ", Single Visit Point: " << visited.size() << std::endl;
+    }
+    */
+
     // Bucket ids
     buckets_ = std::make_shared<InnerIdBucket>(allocator_);
     for (int i = 0; i < core_ids_.size(); i++) {
         auto bucket = std::make_unique<Vector<InnerIdType>>(allocator_);
         StreamReader::ReadVector(reader, *bucket);
+        // if (bucket->size() > 1) {
+        //     std::cout << bucket->size() << " ";
+        // }
         buckets_->emplace_back(std::move(bucket));
     }
+    // std::cout << std::endl;
 
     StreamReader::ReadVector(reader, buckets_offset_);
+    appear_.resize(core_ids_.size(), 0);
 
 #ifdef OMYDEBUG
     {
@@ -786,12 +845,12 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
                 "type": "block_memory_io",
                 "file_path": "./default_file_path"
             },
-            "max_degree":64,
+            "max_degree": 32,
             "init_capacity": 100
         },
         "odescent": {
-            "max_degree": 64,
-            "alpha": 1.2,
+            "max_degree": 32,
+            "alpha": 1.4,
             "graph_iter_turn": 30,
             "neighbor_sample_rate": 0.3,
             "min_in_degree": 4,
@@ -822,7 +881,7 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
             "use_quantization": true,
             "build_thread_count": 100,
             "capacity": 48,
-            "bucket_file": "/tmp/test_ugraph_gist/gist_buckets.bin"
+            "bucket_file": "/tmp/test_ugraph_sift/sift_buckets.bin"
         }
     })";
 
