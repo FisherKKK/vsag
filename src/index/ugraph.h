@@ -89,9 +89,7 @@ public:
     }
 
     [[nodiscard]] int64_t
-    GetMemoryUsage() const override {
-        return 0;
-    }
+    GetMemoryUsage() const override;
 
 private:
     void
@@ -105,7 +103,7 @@ public:
     mutable uint64_t query_count_ = 0;
     mutable uint64_t cmp_count_ = 0;  // dist cmp times
 
-    mutable std::vector<int64_t> appear_; // recall times of bucket
+    mutable std::unordered_map<std::string, int64_t> appear_times_; // recall times of bucket
 
 private:
 private:

@@ -202,6 +202,15 @@ R"(
     "{\"hnsw\":{\"ef_search\":100},\"diskann\":{\"ef_search\":100,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}, \"pagraph\": {\"nprobe\": 100, \"ef_search\": 400}}"
 
 
+
+DiskANN
+
+/home/dataset/gist/gist-960-euclidean.hdf5
+search:10
+diskann
+"{\"dim\": 960, \"dtype\": \"float32\", \"metric_type\": \"l2\", \"diskann\": {\"max_degree\": 64, \"ef_construction\": 200, \"pq_sample_rate\": 0.5, \"pq_dims\": 512, \"use_pq_search\": true, \"use_async_io\": true, \"use_bsa\": false}, \"ugraph\": {}}"
+"{\"diskann\":{\"ef_search\":40,\"beam_search\":4,\"io_limit\":200,\"use_reorder\":true}, \"ugraph\": {\"nprobe\": 10, \"ef_search\": 320}}"
+
     DiskANN
     /home/dataset/gist/gist-960-euclidean.hdf5
     build

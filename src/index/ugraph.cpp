@@ -127,7 +127,7 @@ UGraph::Build(const DatasetPtr& base) {
     graph_flatten_codes_->BatchInsertVector(base_vecs, num_elements);
 
     ODescent graph_builder(
-        odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
+        odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get(), false);
     graph_builder.Build();
     graph_builder.SaveGraph(graph_);
 
@@ -225,10 +225,11 @@ UGraph::Build(const DatasetPtr& base) {
 
     // Compress half edges for performance test
     float last_dist = 0.f, history = 0.f, delta = 0.1f;
-    int64_t count = 0, count_threshold = 32;
+    int64_t count = 0, count_threshold = 512;
 
 
     // std::ofstream edges_writer("/tmp/edges.txt", std::ios_base::out);
+
     while (edges.size() > 0) {
         auto [d, src, dest] = edges.top();
         auto src_root = us.Find(src), dest_root = us.Find(dest);
@@ -240,7 +241,7 @@ UGraph::Build(const DatasetPtr& base) {
         auto &src_rd = radius[src], &dest_rd = radius[dest];
 
         // r1^2 + r2^2 - d^2 >= 2 * r1 * r2 * 1.7 / 2
-        if (d < 1e-6 || count < count_threshold || (src_rd + dest_rd >= d && src_rd * src_rd + dest_rd * dest_rd >= 1.414f * src_rd * dest_rd + d * d)) {
+        if (d < upper_bound || count < count_threshold || (src_rd + dest_rd >= d && src_rd * src_rd + dest_rd * dest_rd >= 1.73f * src_rd * dest_rd + d * d)) {
             us.Union(src_root, dest_root);
             // src_rd = dest_rd = (src_rd + dest_rd + d) / 2.f;
             // src_rd = d;
@@ -248,6 +249,7 @@ UGraph::Build(const DatasetPtr& base) {
         }
         count += 1;
     }
+
 
     // Store the union graph id in union_core
     // [root1] [root2] [root3] ... [rootn]
@@ -263,15 +265,15 @@ UGraph::Build(const DatasetPtr& base) {
     buckets_->reserve(graph_size);
 
     // Sets for edge storage
-    // Vector<std::shared_ptr<UnorderedSet<InnerIdType>>> linklist(allocator_);
+    Vector<std::shared_ptr<UnorderedSet<InnerIdType>>> linklist(allocator_);
     // linklist.reserve(graph_size / 5);
 
     // Keep graph
     for (InnerIdType i = 0; i < graph_size; i++) {
         auto root = us.Find(i);
         // assert(root == i);
-        // Vector<InnerIdType> nns(allocator_);
-        // graph_->GetNeighbors(i, nns);
+        Vector<InnerIdType> nns(allocator_);
+        graph_->GetNeighbors(i, nns);
         InnerIdType index = 0;
 
         if (unique_core.count(root)) {
@@ -283,7 +285,7 @@ UGraph::Build(const DatasetPtr& base) {
             union_core.emplace_back(root);
 
             // Create neighbor set
-            // linklist.emplace_back(std::make_shared<UnorderedSet<InnerIdType>>(allocator_));
+            linklist.emplace_back(std::make_shared<UnorderedSet<InnerIdType>>(allocator_));
 
             // Create bucket
             buckets_->emplace_back(std::make_unique<Vector<InnerIdType>>(allocator_));
@@ -293,7 +295,7 @@ UGraph::Build(const DatasetPtr& base) {
         }
 
         // Merge the edges of graph
-        // linklist[index]->insert(nns.begin(), nns.end());
+        linklist[index]->insert(nns.begin(), nns.end());
         buckets_->at(index)->emplace_back(i);
     }
 
@@ -359,10 +361,25 @@ UGraph::Build(const DatasetPtr& base) {
         graph_flatten_codes_->InsertVector(core_vec);
     }
 
-    ODescent refine_graph_builder(
-        odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
-    refine_graph_builder.Build();
-    refine_graph_builder.SaveGraph(graph_);
+    // rebuild graph
+
+    {
+        ODescent refine_graph_builder(
+            odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
+        refine_graph_builder.Build();
+        refine_graph_builder.SaveGraph(graph_);
+    }
+
+
+    // reconstruct graph
+    /*
+    {
+        for (auto i = 0; i < core_ids_.size(); i++) {
+            Vector<InnerIdType> nns_i(linklist[i]->begin(), linklist[i]->end(), allocator_);
+            graph_->InsertNeighborsById(i, nns_i);
+        }
+    }
+    */
 
 
 #ifdef OMYDEBUG
@@ -471,6 +488,20 @@ UGraph::Build(const DatasetPtr& base) {
     return {};
 }
 
+int64_t
+UGraph::GetMemoryUsage() const {
+    /**
+    std::ofstream fout("/tmp/access.txt", std::ios::out);
+
+    for (auto [_, v]: appear_times_) {
+        fout << v << " ";
+    }
+    fout << std::endl;
+    **/
+    return 0;
+}
+
+
 DatasetPtr
 UGraph::KnnSearch(const DatasetPtr& query,
                   int64_t k,
@@ -529,6 +560,30 @@ UGraph::KnnSearch(const DatasetPtr& query,
     std::condition_variable cv;
     int64_t issue_data_off = 0;
 
+    /*
+    {
+        auto test_copy = graph_id_result;
+        std::vector<InnerIdType> ids;
+        while (test_copy.size() > 0) {
+            ids.emplace_back(test_copy.top().second);
+            test_copy.pop();
+        }
+
+        std::sort(ids.begin(), ids.end());
+
+        for (int i = 0; i < ids.size(); i++) {
+            for (int j = i + 1; j < ids.size(); j++) {
+                auto key = std::to_string(ids[i]) + ":" + std::to_string(ids[j]);
+                if (appear_times_.count(key) > 0) {
+                    appear_times_[key] += 1;
+                } else {
+                    appear_times_[key] = 1;
+                }
+            }
+        }
+    }
+    */
+
     while (graph_id_result.size() > 0) {
         auto [centroid_dist, centroid_id] = graph_id_result.top();
         auto inner_id = core_ids_[centroid_id];
@@ -546,7 +601,7 @@ UGraph::KnnSearch(const DatasetPtr& query,
             continue;
 
 
-        appear_[centroid_id] += 1;
+
 
         auto dest = issue_data.data() + issue_data_off;
         issue_data_off += issue_size;
@@ -750,7 +805,7 @@ UGraph::Deserialize(StreamReader& reader) {
     // std::cout << std::endl;
 
     StreamReader::ReadVector(reader, buckets_offset_);
-    appear_.resize(core_ids_.size(), 0);
+    // appear_.resize(core_ids_.size(), 0);
 
 #ifdef OMYDEBUG
     {
