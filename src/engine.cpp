@@ -143,7 +143,6 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
             auto sparse_index =
                 std::make_shared<IndexImpl<SparseIndex>>(sparse_json, index_common_params);
             return sparse_index;
-            return std::make_shared<Pyramid>(pyramid_params, index_common_params);
         } else if (name == INDEX_PAGRAPH) {
             logger::debug("created a pagraph index");
             JsonType pagraph_json;
