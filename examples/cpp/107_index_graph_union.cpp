@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <impl/odescent_graph_builder.h>
 #include <vsag/vsag.h>
 
 #include <iostream>
@@ -50,13 +51,11 @@ main(int argc, char** argv) {
         "index_param": {
             "base_quantization_type": "sq8",
             "max_degree": 26,
-            "ef_construction": 100,
-            "build_thread_count": 2
+            "ef_construction": 100
         }
     }
     )";
-    vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
-    vsag::Engine engine(&resource);
+    vsag::Engine engine;
     auto index = engine.CreateIndex("hgraph", hgraph_build_parameters).value();
 
     /******************* Build HGraph Index *****************/
@@ -94,5 +93,6 @@ main(int argc, char** argv) {
     }
 
     engine.Shutdown();
+
     return 0;
 }

@@ -32,6 +32,10 @@
 #include "index/hnsw_zparameters.h"
 #include "index/index_common_param.h"
 #include "index/index_impl.h"
+#include "index/pag.h"
+#include "index/pyramid.h"
+#include "index/pyramid_zparameters.h"
+#include "index/ugraph.h"
 #include "resource_owner_wrapper.h"
 #include "safe_thread_pool.h"
 #include "typing.h"
@@ -139,6 +143,25 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
             auto sparse_index =
                 std::make_shared<IndexImpl<SparseIndex>>(sparse_json, index_common_params);
             return sparse_index;
+            return std::make_shared<Pyramid>(pyramid_params, index_common_params);
+        } else if (name == INDEX_PAGRAPH) {
+            logger::debug("created a pagraph index");
+            JsonType pagraph_json;
+            if (parsed_params.contains(INDEX_PARAM)) {
+                pagraph_json = std::move(parsed_params[INDEX_PARAM]);
+            }
+            auto pagraph_index =
+                std::make_shared<IndexImpl<PAGraph>>(pagraph_json, index_common_params);
+            return pagraph_index;
+        } else if (name == INDEX_UGRAPH) {
+            logger::debug("created a ugraph index");
+            JsonType ugraph_json;
+            if (parsed_params.contains(INDEX_PARAM)) {
+                ugraph_json = std::move(parsed_params[INDEX_PARAM]);
+            }
+            auto ugraph_index =
+                std::make_shared<IndexImpl<UGraph>>(ugraph_json, index_common_params);
+            return ugraph_index;
         } else {
             LOG_ERROR_AND_RETURNS(
                 ErrorType::UNSUPPORTED_INDEX, "failed to create index(unsupported): ", name);
