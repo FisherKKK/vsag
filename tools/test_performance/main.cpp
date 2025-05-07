@@ -60,9 +60,72 @@ run_test(const std::string& index_name,
 const static std::string DIR_NAME = "/tmp/test_performance/";
 const static std::string META_DATA_FILE = "_meta.data";
 
+#if USE_ALIFLASH == 0
+
+
+std::unique_ptr<AliFlashClient> aliflash_client;
+
+
+void free_resource() {
+
+}
+
+void read_vec(const std::string &path, float *base_data, size_t vecdim, size_t vecsize) {
+    std::cout << "Open file: " << path << std::endl;
+    std::ifstream fin(path, std::ios::in | std::ios::binary);
+    int dummy_dim = 0;
+    for (size_t i = 0; i < vecsize; i++) {
+        fin.read((char*)(&dummy_dim), sizeof(dummy_dim));
+        fin.read((char*)(base_data + i * vecdim), sizeof(*base_data) * vecdim);
+        assert(dummy_dim == vecdim);
+    }
+}
+
+int init_database(EvalDatasetPtr dataset_ptr) {
+    // size_t dataset_info[][2] = {
+    //     {128, 500000},
+    //     {960, 100000}
+    // };
+
+    // int dataset_key = database_file.find("sift") != std::string::npos ? 0 : 1;
+
+    // if (dataset_key == 0) {
+    //     std::cout << "Using sift" << std::endl;
+    // } else {
+    //     std::cout << "Using gist" << std::endl;
+    // }
+
+    // size_t vecdim = dataset_info[dataset_key][0];
+    // size_t vecsize = dataset_info[dataset_key][1];
+
+
+    // float *base_data = new float[vecdim * vecsize];
+    // read_vec(database_file, base_data, vecdim, vecsize);
+
+    // std::cout << "Open file: " << database_file
+    //           << ", vecsize: " << vecsize
+    //           << ", vecdim: " << vecdim << std::endl;
+
+    
+    size_t vecdim = dataset_ptr->GetDim();
+    size_t vecsize = dataset_ptr->GetNumberOfBase();
+    float *base_data = (float*) dataset_ptr->GetTrain();
+
+    aliflash_client = std::make_unique<AliFlashClient>(vecdim);
+    aliflash_client->open();
+    aliflash_client->upload(base_data, vecsize);
+
+
+    // delete[] base_data;
+    // std::cout << "delete data in memory" << std::endl;
+
+    return 0;
+}
+#endif
+
 int
 main(int argc, char* argv[]) {
-    set_level(level::off);
+    set_level(level::debug);
     if (argc != 6) {
         std::cerr << "Usage: " << argv[0]
                   << " <dataset_file_path> <process> <index_name> <build_param> <search_param>"
@@ -221,6 +284,10 @@ public:
         }
 
         auto eval_dataset = EvalDataset::Load(dataset_path);
+
+#if USE_ALIFLASH == 1
+        init_database(eval_dataset);
+#endif
 
         // search
         auto search_start = std::chrono::steady_clock::now();

@@ -203,6 +203,13 @@ DiskANN::DiskANN(DiskannParameters& diskann_params, const IndexCommonParam& inde
             VECTOR_PER_BLOCK);
     this->feature_list_ = std::make_shared<IndexFeatureList>();
     this->init_feature_list();
+
+#if USE_ALIFLASH == 0
+    {
+        
+    }
+#endif
+
 }
 
 tl::expected<std::vector<int64_t>, Error>
@@ -400,6 +407,7 @@ DiskANN::knn_search(const DatasetPtr& query,
                     Timer timer(time_cost);
                     if (preload_) {
                         if (params.use_async_io) {
+                            std::cout << "use async io" << std::endl;
                             k = index_->cached_beam_search_async(
                                 query->GetFloat32Vectors() + i * dim_,
                                 k,

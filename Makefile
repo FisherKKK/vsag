@@ -110,8 +110,8 @@ test_tsan_parallel: tsan ## Run unit tests parallel with ThreadSanitizer option.
 ##
 ## ================ distribution ================
 .PHONY: release
-release:                 ## Build vsag with release options.
-	cmake ${VSAG_CMAKE_ARGS} -B${RELEASE_BUILD_DIR} -DCMAKE_BUILD_TYPE=Release
+release:                 ## Build vsag with release options. ## -DENABLE_ALIFLASH=ON
+	cmake ${VSAG_CMAKE_ARGS} -B${RELEASE_BUILD_DIR} -DCMAKE_BUILD_TYPE=Release 
 	cmake --build ${RELEASE_BUILD_DIR} --parallel ${COMPILE_JOBS}
 
 .PHONY: dist-old-abi
