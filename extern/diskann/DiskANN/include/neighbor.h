@@ -17,6 +17,10 @@ struct Neighbor
     float distance;
     bool expanded;
 
+#if USE_ALIFLASH == 1
+    float exact_distance;
+#endif
+
     Neighbor() = default;
 
     Neighbor(unsigned id, float distance) : id{id}, distance{distance}, expanded(false)

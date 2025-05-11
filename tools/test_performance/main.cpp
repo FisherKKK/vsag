@@ -63,12 +63,7 @@ const static std::string META_DATA_FILE = "_meta.data";
 #if USE_ALIFLASH == 0
 
 
-std::unique_ptr<AliFlashClient> aliflash_client;
-
-
-void free_resource() {
-
-}
+std::shared_ptr<AliFlashClient> aliflash_client;
 
 void read_vec(const std::string &path, float *base_data, size_t vecdim, size_t vecsize) {
     std::cout << "Open file: " << path << std::endl;
@@ -111,7 +106,7 @@ int init_database(EvalDatasetPtr dataset_ptr) {
     size_t vecsize = dataset_ptr->GetNumberOfBase();
     float *base_data = (float*) dataset_ptr->GetTrain();
 
-    aliflash_client = std::make_unique<AliFlashClient>(vecdim);
+    aliflash_client = AliFlashClient::GetInstance(vecdim);
     aliflash_client->open();
     aliflash_client->upload(base_data, vecsize);
 
@@ -285,7 +280,7 @@ public:
 
         auto eval_dataset = EvalDataset::Load(dataset_path);
 
-#if USE_ALIFLASH == 1
+#if USE_ALIFLASH == 0
         init_database(eval_dataset);
 #endif
 

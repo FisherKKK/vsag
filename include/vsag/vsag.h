@@ -14,7 +14,10 @@
 
 #pragma once
 
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <iostream>
 
 namespace vsag {
 
@@ -53,8 +56,15 @@ init();
 #include "pnm_engine_def.h"
 #include "pnmesdk_client_c.h"
 
+#define USE_ALIFLASH 1
 
 struct AliFlashClient {
+
+  static std::shared_ptr<AliFlashClient> GetInstance(size_t dim) {
+    static auto client = std::make_shared<AliFlashClient>(dim);
+    return client;
+  }
+
   AliFlashClient(size_t dim) {
       config_ = new pnmesdk_conf();
       context_ = new database_context();
@@ -117,6 +127,31 @@ struct AliFlashClient {
       std::cout << "Upload succeed" << std::endl;
   }
 
+  void cal_single(void *query, uint64_t single_id, float *dist, int hnsw_query_id) {
+    calculate_config calc_config;
+    calc_config.target_vector = query;
+    calc_config.target_vector_size = vecdim_ * FP32;
+    calc_config.ids_list = &single_id;
+    calc_config.ids_size = 1;
+    calc_config.result_list = dist;
+    calc_config.hnsw_query_id = hnsw_query_id;
+    ret = database_context_cal(context_, &calc_config);
+    if (ret) {
+        printf("current vector cal task execute failed, ret = %d\n", ret);
+        exit(1);
+    }
+  }
+
+
+  int begin_single() {
+    return pnme_get_search_query_id();
+  }
+
+  void end_single(int query_id) {
+    pnme_hnsw_search_end(query_id);
+  }
+
+
   int ret = 0;
   database_context* context_ = nullptr;
   pnmesdk_conf *config_ = nullptr;
@@ -125,6 +160,6 @@ struct AliFlashClient {
   size_t vecsize_ = 0;
   size_t vecdim_ = 0;
 
-  constexpr static uint64_t BLOCK_SIZE = 1000000ul * 1024 * 4;
+  constexpr static uint64_t BLOCK_SIZE = 1000000UL * 1024 * 4;
    // 1 * 1024 * 1024 * 1024; // bytes
 };

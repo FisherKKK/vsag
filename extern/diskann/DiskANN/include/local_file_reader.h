@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <cstdint>
 #ifndef _WINDOWS
 
 #include <malloc.h>
@@ -12,7 +13,13 @@
 #include <functional>
 #include "vsag/readerset.h"
 typedef std::function<void(vsag::IOErrorCode code, const std::string& message)> CallBack;
+
+#if USE_ALIFLASH == 1
+typedef std::vector<std::tuple<uint64_t*, float*, void*>> batch_request; ;
+#else
 typedef std::vector<std::tuple<uint64_t, uint64_t, void*>> batch_request;
+#endif
+
 typedef std::function<void(batch_request, bool, CallBack)> reader_function;
 
 struct AlignedRead
@@ -20,12 +27,27 @@ struct AlignedRead
     uint64_t offset; // where to read from
     uint64_t len;    // how much to read
     void *buf;       // where to read into
+
+#if USE_ALIFLASH == 1
+    uint64_t neighbor_id; // neighbor id
+    void *query;
+    float *dist;
+
+    AlignedRead() : offset(0), len(0), buf(nullptr), query(nullptr) {}
+
+    AlignedRead(uint64_t offset, uint64_t len, void *buf, uint64_t neighbor_id = 0, void *query = nullptr) :
+        offset(offset), len(len), buf(buf), neighbor_id(neighbor_id), query(query) {}
+
+#else
     AlignedRead() : offset(0), len(0), buf(nullptr)
     {
     }
     AlignedRead(uint64_t offset, uint64_t len, void *buf) : offset(offset), len(len), buf(buf)
     {
     }
+
+#endif
+
 };
 
 class LocalFileReader

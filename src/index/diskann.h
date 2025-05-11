@@ -17,6 +17,8 @@
 
 // to suppress deprecated warning below(no better way found that works with clang-tidy-15):
 // - clang-diagnostic-deprecated-builtins
+#include <memory>
+#include "vsag/vsag.h"
 #if defined(__clang__) && (__clang_major__ >= 15)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-builtins"
@@ -235,6 +237,10 @@ private:
     std::function<void(const std::vector<read_request>&, bool, CallBack)> batch_read_;
     diskann::Metric metric_;
     std::shared_ptr<Reader> disk_layout_reader_;
+
+#if USE_ALIFLASH == 1
+    std::shared_ptr<AliFlashClient> aliflash_client_;
+#endif
 
     int L_ = 200;
     int R_ = 64;

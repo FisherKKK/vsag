@@ -159,10 +159,23 @@ DiskANN::DiskANN(DiskannParameters& diskann_params, const IndexCommonParam& inde
                       bool async,
                       const CallBack& callBack) -> void {
         if (async) {
+#if USE_ALIFLASH == 1
+            auto hnsw_query_id = aliflash_client_->begin_single();
+#endif
+
             for (const auto& req : requests) {
+#if USE_ALIFLASH == 1
+                auto [single_id, dist, query] = req;
+                aliflash_client_->cal_single(query, single_id, dist, hnsw_query_id);
+#else
                 auto [offset, len, dest] = req;
                 disk_layout_reader_->AsyncRead(offset, len, dest, callBack);
+#endif
             }
+
+#if USE_ALIFLASH == 1
+            aliflash_client_->end_single(hnsw_query_id);
+#endif
         } else {
             std::atomic<bool> succeed(true);
             std::string error_message;
@@ -204,9 +217,9 @@ DiskANN::DiskANN(DiskannParameters& diskann_params, const IndexCommonParam& inde
     this->feature_list_ = std::make_shared<IndexFeatureList>();
     this->init_feature_list();
 
-#if USE_ALIFLASH == 0
+#if USE_ALIFLASH == 1
     {
-        
+        aliflash_client_ = AliFlashClient::GetInstance(index_common_param.dim_);
     }
 #endif
 
