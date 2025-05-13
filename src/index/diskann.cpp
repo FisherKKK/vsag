@@ -155,27 +155,57 @@ DiskANN::DiskANN(DiskannParameters& diskann_params, const IndexCommonParam& inde
       diskann_params_(diskann_params),
       common_param_(index_common_param) {
     status_ = IndexStatus::EMPTY;
+
+    batch_read_multi_cal_ = [&](void *query, uint64_t *ids, float *dists, uint32_t size) {
+      auto hnsw_query_id = aliflash_client_->begin_single();
+        aliflash_client_->cal_multi(query, ids, dists, size, hnsw_query_id);
+        aliflash_client_->end_single(hnsw_query_id);
+    };
+
+
+    auto cal_func = [](std::shared_ptr<AliFlashClient> &client, const std::vector<read_cal_request>& requests, const CallBack callback) {
+        auto hnsw_query_id = client->begin_single();
+        for (const auto& req : requests) {
+            auto [single_id, dist, query] = req;
+            client->cal_single(query, single_id, dist, hnsw_query_id);
+            callback(IOErrorCode::IO_SUCCESS, "success");
+        }
+        client->end_single(hnsw_query_id);
+    };
+
+    batch_read_cal_ = [&](const std::vector<read_cal_request>& requests,
+                      bool async,
+                      const CallBack& callback) -> void {
+        // auto client = aliflash_client_;
+        if (async) {
+            // auto task = [&] ()
+            // {
+            //     auto hnsw_query_id = aliflash_client_->begin_single();
+            //     for (const auto& req : requests) {
+            //         auto [single_id, dist, query] = req;
+            //         aliflash_client_->cal_single(query, single_id, dist, hnsw_query_id);
+            //         callback(IOErrorCode::IO_SUCCESS, "success");
+            //     }
+            //     aliflash_client_->end_single(hnsw_query_id);
+            // };
+            // common_param_.thread_pool_->GeneralEnqueue(task);
+            // task();
+            // if (not common_param_.thread_pool_) {
+            //     common_param_.thread_pool_ = SafeThreadPool::FactoryDefaultThreadPool();
+            // }
+            // common_param_.thread_pool_->GeneralEnqueue(cal_func, aliflash_client_, requests, callback);
+            cal_func(aliflash_client_, requests, callback);
+        }
+    };
+
     batch_read_ = [&](const std::vector<read_request>& requests,
                       bool async,
                       const CallBack& callBack) -> void {
         if (async) {
-#if USE_ALIFLASH == 1
-            auto hnsw_query_id = aliflash_client_->begin_single();
-#endif
-
             for (const auto& req : requests) {
-#if USE_ALIFLASH == 1
-                auto [single_id, dist, query] = req;
-                aliflash_client_->cal_single(query, single_id, dist, hnsw_query_id);
-#else
                 auto [offset, len, dest] = req;
                 disk_layout_reader_->AsyncRead(offset, len, dest, callBack);
-#endif
             }
-
-#if USE_ALIFLASH == 1
-            aliflash_client_->end_single(hnsw_query_id);
-#endif
         } else {
             std::atomic<bool> succeed(true);
             std::string error_message;
@@ -751,7 +781,13 @@ DiskANN::deserialize(const ReaderSet& reader_set) {
     }
 
     disk_layout_reader_ = reader_set.Get(DISKANN_LAYOUT_FILE);
+
+#if USE_ALIFLASH == 1
+    reader_.reset(new LocalFileReader(batch_read_, batch_read_cal_, batch_read_multi_cal_));
+#else
     reader_.reset(new LocalFileReader(batch_read_));
+#endif
+
     index_.reset(
         new diskann::PQFlashIndex<float, int64_t>(reader_, metric_, sector_len_, dim_, use_bsa_));
     index_->load_from_separate_paths(pq_pivots_stream, disk_pq_compressed_vectors, tag_stream);
@@ -1046,7 +1082,11 @@ DiskANN::build_partial_graph(const DatasetPtr& base,
 tl::expected<void, Error>
 DiskANN::load_disk_index(const BinarySet& binary_set) {
     disk_layout_reader_ = std::make_shared<LocalMemoryReader>(disk_layout_stream_);
+#if USE_ALIFLASH == 1
+    reader_.reset(new LocalFileReader(batch_read_, batch_read_cal_, batch_read_multi_cal_));
+#else
     reader_.reset(new LocalFileReader(batch_read_));
+#endif
     index_.reset(
         new diskann::PQFlashIndex<float, int64_t>(reader_, metric_, sector_len_, dim_, use_bsa_));
 

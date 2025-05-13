@@ -57,10 +57,10 @@ run_test(const std::string& index_name,
          const std::string& search_parameters,
          const std::string& dataset_path);
 
-const static std::string DIR_NAME = "/tmp/test_performance/";
-const static std::string META_DATA_FILE = "_meta.data";
+const static std::string DIR_NAME = "/tmp/test_performance/sift";
+const static std::string META_DATA_FILE = "sift_meta.data";
 
-#if USE_ALIFLASH == 0
+#if USE_ALIFLASH == 1
 
 
 std::shared_ptr<AliFlashClient> aliflash_client;
@@ -133,6 +133,13 @@ main(int argc, char* argv[]) {
     std::string index_name = argv[3];
     std::string build_parameters = argv[4];
     std::string search_parameters = argv[5];
+
+    std::cout << "datafile: " << dataset_filename
+              << ", process: " << process
+              << ", index name: " << index_name
+              << ", build param: " << build_parameters
+              << ", search param: " << search_parameters
+              << std::endl;
 
     struct stat st;
     if (stat(DIR_NAME.c_str(), &st) != 0) {
@@ -280,7 +287,7 @@ public:
 
         auto eval_dataset = EvalDataset::Load(dataset_path);
 
-#if USE_ALIFLASH == 0
+#if USE_ALIFLASH == 1
         init_database(eval_dataset);
 #endif
 

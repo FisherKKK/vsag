@@ -57,6 +57,7 @@ if (ENABLE_ALIFLASH)
     message (STATUS "Using aliflash")
 else ()
     add_definitions (-DUSE_ALIFLASH=0)
+    set (CMAKE_CXX_FLAGS  "-w")
     message (STATUS "Using local ssd")
 endif ()
 

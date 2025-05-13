@@ -14,13 +14,13 @@
 #include "vsag/readerset.h"
 typedef std::function<void(vsag::IOErrorCode code, const std::string& message)> CallBack;
 
-#if USE_ALIFLASH == 1
-typedef std::vector<std::tuple<uint64_t*, float*, void*>> batch_request; ;
-#else
-typedef std::vector<std::tuple<uint64_t, uint64_t, void*>> batch_request;
-#endif
 
+typedef std::vector<std::tuple<uint64_t, float*, void*>> batch_cal_request;
+typedef std::vector<std::tuple<uint64_t, uint64_t, void*>> batch_request;
+
+typedef std::function<void(void *query, uint64_t *ids, float *dists, uint32_t size)> reader_multi_cal_function;
 typedef std::function<void(batch_request, bool, CallBack)> reader_function;
+typedef std::function<void(batch_cal_request, bool, CallBack)> reader_cal_function;
 
 struct AlignedRead
 {
@@ -54,8 +54,13 @@ class LocalFileReader
 {
 private:
     reader_function func_;
+    reader_cal_function func_cal_;
+    reader_multi_cal_function func_multi_cal_;
 public:
     LocalFileReader(reader_function func): func_(func) {}
+    LocalFileReader(reader_function func, reader_cal_function func_cal): func_(func), func_cal_(func_cal) {}
+    LocalFileReader(reader_function func, reader_cal_function func_cal, reader_multi_cal_function func_multi_cal):
+        func_(func), func_cal_(func_cal), func_multi_cal_(func_multi_cal) {}
     ~LocalFileReader() = default;
 
     // de-register thread-id for a context
@@ -70,6 +75,10 @@ public:
     // process batch of aligned requests in parallel
     // NOTE :: blocking call
     void read(std::vector<AlignedRead> &read_reqs, bool async = false, CallBack callBack = nullptr);
+
+    void read_and_cal(std::vector<AlignedRead> &read_reqs, bool async = false, CallBack callBack = nullptr);
+
+    void read_and_multi_cal(void *query, uint64_t *ids, float *dists, uint32_t size);
 };
 
 

@@ -56,7 +56,7 @@ init();
 #include "pnm_engine_def.h"
 #include "pnmesdk_client_c.h"
 
-#define USE_ALIFLASH 1
+// #define USE_ALIFLASH 1
 
 struct AliFlashClient {
 
@@ -114,7 +114,7 @@ struct AliFlashClient {
 
       // tail
       if (i < vecsize_) {
-          std::cout << "Deal with tail" << std::endl;
+          std::cout << "Deal with tail: " << vecsize_ - i << std::endl;
           ret = pnmesdk_db_storage(context_, (char*)(base_data + i * vecdim_), (vecsize_ - i) * vecdim_ * FP32);
       }
 
@@ -142,12 +142,29 @@ struct AliFlashClient {
     }
   }
 
+  void cal_multi(void *query, uint64_t* ids, float *dist, uint32_t size, int hnsw_query_id) {
+    calculate_config calc_config;
+    calc_config.target_vector = query;
+    calc_config.target_vector_size = vecdim_ * FP32;
+    calc_config.ids_list = ids;
+    calc_config.ids_size = size;
+    calc_config.result_list = dist;
+    calc_config.hnsw_query_id = hnsw_query_id;
+    ret = database_context_cal(context_, &calc_config);
+    if (ret) {
+      printf("current vector cal task execute failed, ret = %d\n", ret);
+      exit(1);
+    }
+  }
+
 
   int begin_single() {
+    // std::unique_lock<std::mutex> lk(mutex_);
     return pnme_get_search_query_id();
   }
 
   void end_single(int query_id) {
+    // std::unique_lock<std::mutex> lk(mutex_);
     pnme_hnsw_search_end(query_id);
   }
 
@@ -159,7 +176,8 @@ struct AliFlashClient {
   char* database_name_ = "ant-vsag-diskann";
   size_t vecsize_ = 0;
   size_t vecdim_ = 0;
+  std::mutex mutex_;
 
-  constexpr static uint64_t BLOCK_SIZE = 1000000UL * 1024 * 4;
+  constexpr static uint64_t BLOCK_SIZE = 100000UL * 1024 * 4;
    // 1 * 1024 * 1024 * 1024; // bytes
 };

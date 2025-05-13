@@ -36,7 +36,7 @@ help:                    ## Show the help.
 ## ================ development ================
 .PHONY: debug
 debug:                   ## Build vsag with debug options. -DENABLE_ALIFLASH=ON
-	cmake ${VSAG_CMAKE_ARGS} -B${DEBUG_BUILD_DIR} -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=OFF -DENABLE_CCACHE=ON
+	cmake ${VSAG_CMAKE_ARGS} -B${DEBUG_BUILD_DIR} -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=OFF -DENABLE_CCACHE=ON -DENABLE_ALIFLASH=ON
 	cmake --build ${DEBUG_BUILD_DIR} --parallel ${COMPILE_JOBS}
 
 .PHONY: test

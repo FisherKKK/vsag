@@ -62,6 +62,7 @@ public:
     using rs = std::pair<float, size_t>;
 
     // offset: uint64, len: uint64, dest: void*
+    using read_cal_request = std::tuple<uint64_t, float*, void*>;
     using read_request = std::tuple<uint64_t, uint64_t, void*>;
 
     DiskANN(DiskannParameters& diskann_params, const IndexCommonParam& index_common_param);
@@ -234,13 +235,13 @@ private:
 
     IndexFeatureListPtr feature_list_{nullptr};
 
+    std::function<void(void *query, uint64_t *ids, float *dists, uint32_t size)> batch_read_multi_cal_;
+    std::function<void(const std::vector<read_cal_request>&, bool, CallBack)> batch_read_cal_;
     std::function<void(const std::vector<read_request>&, bool, CallBack)> batch_read_;
     diskann::Metric metric_;
     std::shared_ptr<Reader> disk_layout_reader_;
 
-#if USE_ALIFLASH == 1
     std::shared_ptr<AliFlashClient> aliflash_client_;
-#endif
 
     int L_ = 200;
     int R_ = 64;

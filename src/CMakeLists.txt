@@ -30,8 +30,15 @@ add_library (vsag SHARED ${VSAG_SRCS})
 add_library (vsag_static STATIC ${VSAG_SRCS})
 
 set (VSAG_DEP_LIBS diskann pthread m dl simd io quantizer fmt::fmt-header-only nlohmann_json::nlohmann_json roaring)
-target_link_libraries (vsag ${VSAG_DEP_LIBS} coverage_config)
-target_link_libraries (vsag_static ${VSAG_DEP_LIBS} coverage_config)
+target_link_libraries (vsag ${VSAG_DEP_LIBS} coverage_config -Wl,--whole-archive ${PROJECT_SOURCE_DIR}/src/lib/libpnm_engine_static.a  -Wl,--no-whole-archive 
+-lz 
+numa
+dl)
+
+target_link_libraries (vsag_static ${VSAG_DEP_LIBS} coverage_config -Wl,--whole-archive ${PROJECT_SOURCE_DIR}/src/lib/libpnm_engine_static.a  -Wl,--no-whole-archive 
+-lz 
+numa
+dl)
 
 maybe_add_dependencies (vsag spdlog roaring openblas boost mkl)
 maybe_add_dependencies (vsag_static spdlog roaring openblas boost mkl)

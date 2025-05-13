@@ -8,13 +8,21 @@ test search performance: ./build/tools/test_performance/test_performance <datase
 
 example running commands for building index:
 ```
-./build-release/tools/test_performance/test_performance \
-    '/data/dataset/sift/sift_base.fvecs/' \
-    'build' \
-	'diskann' \
-	'{"dim": 128, "dtype": "float32", "metric_type": "l2",
-     "diskann": {"max_degree": 12, "ef_construction": 100, "pq_dims": 64, "pq_sample_rate": 0.1}}' \
-	'{"hnsw":{"ef_search":100},"diskann":{"ef_search":100,"beam_search":4,"io_limit":200,"use_reorder":true}}'
+./build/tools/test_performance/test_performance \
+'/data/dataset/sift-128-euclidean.hdf5' \
+'build' \
+'diskann' \
+'{"dim": 128, "dtype": "float32", "metric_type": "l2", "diskann":{"use_async_io": true ,"max_degree":16, "ef_construction": 100, "pq_dims": 64, "pq_sample_rate": 0.1}}' \
+'{"diskann":{"ef_search":100,"beam_search":4,"io_limit":200,"use_reorder":true}}'
+
+
+./build/tools/test_performance/test_performance \
+'/data/dataset/sift-128-euclidean.hdf5' \
+'search:10' \
+'diskann' \
+'{"dim": 128, "dtype": "float32", "metric_type": "l2", "diskann":{"use_async_io": true ,"max_degree":16, "ef_construction": 100, "pq_dims": 64, "pq_sample_rate": 0.1}}' \
+'{"diskann":{"ef_search":100,"beam_search":4,"io_limit":200,"use_reorder":true}}'
+
 
 ./build-release/tools/test_performance/test_performance \
     '/data/dataset/gist/gist_base.fvecs/' \

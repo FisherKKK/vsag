@@ -1859,7 +1859,35 @@ int64_t PQFlashIndex<T, LabelT>::cached_beam_search_memory(const T *query, const
 
     // re-sort by distance
     std::sort(full_retset.begin(), full_retset.end());
-    if (reorder) {
+
+#if USE_ALIFLASH == 1
+if (reorder) {
+        std::vector<float> full_retset_dists(full_retset.size());
+        std::vector<uint64_t> full_retset_ids(full_retset.size());
+        for (int i = 0; i < full_retset.size(); i++)
+        {
+            full_retset_ids[i] = full_retset[i].id;
+        }
+
+        reader->read_and_multi_cal(aligned_query_T.get(), full_retset_ids.data(), full_retset_dists.data(), full_retset.size());
+        std::vector<Neighbor> reorder_retset;
+        std::priority_queue<float> distance_ranks;
+
+        for (int i = 0; i < full_retset.size(); i++)
+        {
+            reorder_retset.emplace_back(full_retset_ids[i], full_retset_dists[i]);
+            distance_ranks.push(full_retset_dists[i]);
+            if (distance_ranks.size() > k_search) {
+                distance_ranks.pop();
+            }
+        }
+
+        std::sort(reorder_retset.begin(), reorder_retset.end());
+        full_retset.swap(reorder_retset);
+    }
+
+#else
+   if (reorder) {
         std::vector<Neighbor> reorder_retset;
         std::priority_queue<float> distance_ranks;
         int loc = 0;
@@ -1929,9 +1957,13 @@ int64_t PQFlashIndex<T, LabelT>::cached_beam_search_memory(const T *query, const
                 }
             }
         }
+
+
         std::sort(reorder_retset.begin(), reorder_retset.end());
         full_retset.swap(reorder_retset);
     }
+
+#endif
 
     // copy k_search values
     int64_t result_size = 0;
@@ -2048,10 +2080,10 @@ int64_t PQFlashIndex<T, LabelT>::cached_beam_search_async(const T *query, const 
         candidate_queue.pop();
         auto nohood_id = nbr.id;
 #if USE_ALIFLASH == 1
-        float *exact_dist = &(full_retset.back().exact_dist);
+        float *exact_dist = &(full_retset.back().exact_distance);
         if (reorder) {
             sorted_read_reqs.emplace_back(NODE_SECTOR_NO(((size_t)nohood_id)) * sector_len, sector_len,
-                                          cache_sectors.get() + has_searched * sector_len, nohood_id, query);
+                                          cache_sectors.get() + has_searched * sector_len, nohood_id, aligned_query_T.get());
             sorted_read_reqs.back().dist = exact_dist;
             if (sorted_read_reqs.size() >= beam_width || has_searched == l_search - 1) {
                 int io_count = has_searched / beam_width;
@@ -2070,7 +2102,7 @@ int64_t PQFlashIndex<T, LabelT>::cached_beam_search_async(const T *query, const 
                         promises[io_count].set_value(false);
                     }
                 };
-                reader->read(sorted_read_reqs, true, callBack);
+                reader->read_and_cal(sorted_read_reqs, true, callBack);
                 io_count ++;
                 sorted_read_reqs.clear();
             }
@@ -2153,7 +2185,7 @@ int64_t PQFlashIndex<T, LabelT>::cached_beam_search_async(const T *query, const 
                 {
                     stats->n_cmps += 1;
                 }
-                float exact_dist = full_retset[j].exact_dist;
+                float exact_dist = full_retset[j].exact_distance;
                 reorder_retset.push_back(Neighbor(id, exact_dist));
                 distance_ranks.push(exact_dist);
                 if (distance_ranks.size() > k_search) {
