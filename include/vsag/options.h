@@ -152,10 +152,10 @@ private:
 
 private:
     ///< The size of the thread pool for single index I/O during searches.
-    std::atomic<size_t> num_threads_io_{8};
+    std::atomic<size_t> num_threads_io_{16};
 
     ///< The number of threads used for building a single index.
-    std::atomic<size_t> num_threads_building_{32};
+    std::atomic<size_t> num_threads_building_{8};
 
     ///< The size of the maximum memory allocated each time (default is 128MB).
     std::atomic<size_t> block_size_limit_{128 * 1024 * 1024};
