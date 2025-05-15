@@ -65,10 +65,10 @@ public:
     ComputeDistImpl(Computer<BF16Quantizer>& computer, const uint8_t* codes, float* dists) const;
 
     inline void
-    ComputeBatchDistImpl(Computer<BF16Quantizer<metric>>& computer,
-                         uint64_t count,
-                         const uint8_t* codes,
-                         float* dists) const;
+    ScanBatchDistImpl(Computer<BF16Quantizer<metric>>& computer,
+                      uint64_t count,
+                      const uint8_t* codes,
+                      float* dists) const;
 
     inline void
     ReleaseComputerImpl(Computer<BF16Quantizer<metric>>& computer) const;
@@ -179,8 +179,7 @@ BF16Quantizer<metric>::ProcessQueryImpl(const DataType* query,
         computer.buf_ = reinterpret_cast<uint8_t*>(this->allocator_->Allocate(this->code_size_));
         this->EncodeOneImpl(query, computer.buf_);
     } catch (const std::bad_alloc& e) {
-        logger::error("bad alloc when init computer buf");
-        throw std::bad_alloc();
+        throw VsagException(ErrorType::NO_ENOUGH_MEMORY, "bad alloc when init computer buf");
     }
 }
 
@@ -203,10 +202,10 @@ BF16Quantizer<metric>::ComputeDistImpl(Computer<BF16Quantizer>& computer,
 
 template <MetricType metric>
 void
-BF16Quantizer<metric>::ComputeBatchDistImpl(Computer<BF16Quantizer<metric>>& computer,
-                                            uint64_t count,
-                                            const uint8_t* codes,
-                                            float* dists) const {
+BF16Quantizer<metric>::ScanBatchDistImpl(Computer<BF16Quantizer<metric>>& computer,
+                                         uint64_t count,
+                                         const uint8_t* codes,
+                                         float* dists) const {
     // TODO(LHT): Optimize batch for simd
     for (uint64_t i = 0; i < count; ++i) {
         this->ComputeDistImpl(computer, codes + i * this->code_size_, dists + i);

@@ -20,6 +20,7 @@
 #include <limits>
 
 #include "fixtures/test_dataset_pool.h"
+#include "fixtures/test_logger.h"
 #include "inner_string_params.h"
 #include "test_index.h"
 #include "vsag/options.h"
@@ -32,7 +33,9 @@ public:
                                         int64_t dim,
                                         const std::string& quantization_str = "sq8",
                                         int thread_count = 5,
-                                        int extra_info_size = 0);
+                                        int extra_info_size = 0,
+                                        const std::string& data_type = "float32",
+                                        std::string graph_type = "nsw");
 
     static bool
     IsRaBitQ(const std::string& quantization_str);
@@ -81,12 +84,14 @@ HgraphTestIndex::GenerateHGraphBuildParametersString(const std::string& metric_t
                                                      int64_t dim,
                                                      const std::string& quantization_str,
                                                      int thread_count,
-                                                     int extra_info_size) {
+                                                     int extra_info_size,
+                                                     const std::string& data_type,
+                                                     std::string graph_type) {
     std::string build_parameters_str;
 
     constexpr auto parameter_temp_reorder = R"(
     {{
-        "dtype": "float32",
+        "dtype": "{}",
         "metric_type": "{}",
         "dim": {},
         "extra_info_size": {},
@@ -99,14 +104,18 @@ HgraphTestIndex::GenerateHGraphBuildParametersString(const std::string& metric_t
             "base_pq_dim": {},
             "precise_quantization_type": "{}",
             "precise_io_type": "{}",
-            "precise_file_path": "{}"
+            "precise_file_path": "{}",
+            "graph_type": "{}",
+            "graph_iter_turn": 10,
+            "neighbor_sample_rate": 0.3,
+            "alpha": 1.2
         }}
     }}
     )";
 
     constexpr auto parameter_temp_origin = R"(
     {{
-        "dtype": "float32",
+        "dtype": "{}",
         "metric_type": "{}",
         "dim": {},
         "extra_info_size": {},
@@ -115,7 +124,11 @@ HgraphTestIndex::GenerateHGraphBuildParametersString(const std::string& metric_t
             "max_degree": 96,
             "base_pq_dim": {},
             "ef_construction": 500,
-            "build_thread_count": {}
+            "build_thread_count": {},
+            "graph_type": "{}",
+            "graph_iter_turn": 10,
+            "neighbor_sample_rate": 0.3,
+            "alpha": 1.2
         }}
     }}
     )";
@@ -134,6 +147,7 @@ HgraphTestIndex::GenerateHGraphBuildParametersString(const std::string& metric_t
             precise_io_type = strs[2];
         }
         build_parameters_str = fmt::format(parameter_temp_reorder,
+                                           data_type,
                                            metric_type,
                                            dim,
                                            extra_info_size,
@@ -143,15 +157,18 @@ HgraphTestIndex::GenerateHGraphBuildParametersString(const std::string& metric_t
                                            pq_dim,
                                            high_quantizer_str,
                                            precise_io_type,
-                                           dir.GenerateRandomFile());
+                                           dir.GenerateRandomFile(),
+                                           graph_type);
     } else {
         build_parameters_str = fmt::format(parameter_temp_origin,
+                                           data_type,
                                            metric_type,
                                            dim,
                                            extra_info_size,
                                            base_quantizer_str,
                                            pq_dim,
-                                           thread_count);
+                                           thread_count,
+                                           graph_type);
     }
     return build_parameters_str;
 }
@@ -430,6 +447,35 @@ TEST_CASE_PERSISTENT_FIXTURE(fixtures::HgraphTestIndex, "HGraph Build", "[ft][hg
     }
 }
 
+TEST_CASE_PERSISTENT_FIXTURE(fixtures::HgraphTestIndex, "HGraph ODescent Build", "[ft][hgraph]") {
+    auto origin_size = vsag::Options::Instance().block_size_limit();
+    auto size = GENERATE(1024 * 1024 * 2);
+    auto metric_type = GENERATE("l2", "ip", "cosine");
+
+    const std::string name = "hgraph";
+    auto search_param = fmt::format(search_param_tmp, 200, false);
+    for (auto dim : dims) {
+        for (auto& [base_quantization_str, recall] : test_cases) {
+            if (IsRaBitQ(base_quantization_str)) {
+                if (std::string(metric_type) != "l2") {
+                    continue;
+                }
+                if (dim <= fixtures::RABITQ_MIN_RACALL_DIM) {
+                    dim += fixtures::RABITQ_MIN_RACALL_DIM;
+                }
+            }
+            auto param = GenerateHGraphBuildParametersString(
+                metric_type, dim, base_quantization_str, 0, 0, "float32", "odescent");
+            vsag::Options::Instance().set_block_size_limit(size);
+            auto index = TestFactory(name, param, true);
+            auto dataset = pool.GetDatasetAndCreate(dim, base_count, metric_type);
+            TestBuildIndex(index, dataset, true);
+            TestGeneral(index, dataset, search_param, recall);
+            vsag::Options::Instance().set_block_size_limit(origin_size);
+        }
+    }
+}
+
 TEST_CASE_PERSISTENT_FIXTURE(fixtures::HgraphTestIndex, "HGraph Add", "[ft][hgraph]") {
     auto origin_size = vsag::Options::Instance().block_size_limit();
     auto size = GENERATE(1024 * 1024 * 2);
@@ -482,6 +528,24 @@ TEST_CASE_PERSISTENT_FIXTURE(fixtures::HgraphTestIndex,
         TestBuildIndex(index, dataset, true);
         TestSearchWithDirtyVector(index, dataset, search_param, true);
     }
+    vsag::Options::Instance().set_block_size_limit(origin_size);
+}
+
+TEST_CASE_PERSISTENT_FIXTURE(fixtures::HgraphTestIndex,
+                             "HGraph Search with Sparse Vector",
+                             "[ft][hgraph][concurrent]") {
+    auto origin_size = vsag::Options::Instance().block_size_limit();
+    auto size = GENERATE(1024 * 1024 * 2);
+    auto metric_type = GENERATE("ip");
+    auto dim = 128;
+    auto dataset = pool.GetSparseDatasetAndCreate(base_count, dim, 0.8);
+    const std::string name = "hgraph";
+    auto search_param = fmt::format(search_param_tmp, 100, false);
+    vsag::Options::Instance().set_block_size_limit(size);
+    auto param = GenerateHGraphBuildParametersString(metric_type, dim, "sparse", 5, 0, "sparse");
+    auto index = TestFactory(name, param, true);
+    TestConcurrentAdd(index, dataset, true);
+    TestKnnSearch(index, dataset, search_param, true);
     vsag::Options::Instance().set_block_size_limit(origin_size);
 }
 
@@ -721,6 +785,45 @@ TEST_CASE_PERSISTENT_FIXTURE(fixtures::HgraphTestIndex, "HGraph Estimate Memory"
             vsag::Options::Instance().set_block_size_limit(origin_size);
         }
     }
+}
+
+TEST_CASE_PERSISTENT_FIXTURE(fixtures::HgraphTestIndex, "HGraph ELP Optimizer", "[ft][hgraph]") {
+    fixtures::logger::LoggerReplacer _;
+    vsag::Options::Instance().logger()->SetLevel(vsag::Logger::Level::kDEBUG);
+
+    auto origin_size = vsag::Options::Instance().block_size_limit();
+    auto size = GENERATE(1024 * 1024 * 2);
+    auto metric_type = GENERATE("l2", "cosine");
+
+    const std::string name = "hgraph";
+    auto search_param = fmt::format(search_param_tmp, 200, false);
+    constexpr auto parameter_temp = R"(
+    {{
+        "dtype": "float32",
+        "metric_type": "{}",
+        "dim": {},
+        "index_param": {{
+            "use_reorder": true,
+            "use_elp_optimizer": {},
+            "base_quantization_type": "sq4_uniform",
+            "max_degree": 64,
+            "ef_construction": 200,
+            "precise_quantization_type": "fp32",
+            "ignore_reorder": true
+        }}
+    }}
+    )";
+
+    auto dim = 128;
+    vsag::Options::Instance().set_block_size_limit(size);
+    auto base = pool.GetDatasetAndCreate(dim, 100, metric_type);
+    std::string param_weak = fmt::format(parameter_temp, metric_type, dim, false);
+    std::string param_strong = fmt::format(parameter_temp, metric_type, dim, true);
+    auto index_weak = TestFactory(name, param_weak, true);
+    TestBuildIndex(index_weak, base);
+    auto index_strong = TestFactory(name, param_strong, true);
+    TestBuildIndex(index_strong, base);
+    vsag::Options::Instance().set_block_size_limit(origin_size);
 }
 
 TEST_CASE_PERSISTENT_FIXTURE(fixtures::HgraphTestIndex, "HGraph Ignore Reorder", "[ft][hgraph]") {

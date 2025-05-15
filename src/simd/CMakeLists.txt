@@ -5,10 +5,12 @@ set (SIMD_SRCS
         avx2.cpp
         avx512.cpp
         simd.cpp
+        simd_status.cpp
         basic_func.cpp
         fp32_simd.cpp
         fp16_simd.cpp
         bf16_simd.cpp
+        pqfs_simd.cpp
         sq8_simd.cpp
         sq4_simd.cpp
         sq4_uniform_simd.cpp

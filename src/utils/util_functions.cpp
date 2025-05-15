@@ -47,7 +47,8 @@ mapping_external_param_to_inner(const JsonType& external_json,
             }
             *json = value;
         } else {
-            throw std::invalid_argument(fmt::format("HGraph have no config param: {}", key));
+            throw VsagException(ErrorType::INVALID_ARGUMENT,
+                                fmt::format("invalid config param: {}", key));
         }
     }
 }
@@ -66,7 +67,7 @@ CreateFastDataset(int64_t dim, Allocator* allocator) {
 std::vector<int>
 select_k_numbers(int64_t n, int k) {
     if (k > n || k <= 0) {
-        throw std::invalid_argument("Invalid values for N or K");
+        throw VsagException(ErrorType::INVALID_ARGUMENT, "Invalid values for N or K");
     }
 
     std::vector<int> numbers(n);
@@ -80,6 +81,59 @@ select_k_numbers(int64_t n, int k) {
     }
     numbers.resize(k);
     return numbers;
+}
+
+uint64_t
+next_multiple_of_power_of_two(uint64_t x, uint64_t n) {
+    if (n > 63) {
+        throw std::runtime_error(fmt::format("n is larger than 63, n is {}", n));
+    }
+    uint64_t y = 1 << n;
+    auto result = (x + y - 1) & ~(y - 1);
+    return result;
+}
+
+bool
+check_equal_on_string_stream(std::stringstream& s1, std::stringstream& s2) {
+    if (!s1.good() || !s2.good()) {
+        return false;
+    }
+
+    auto get_length = [](std::stringstream& s) -> std::streamoff {
+        s.seekg(0, std::ios::end);
+        std::streamoff len = s.tellg();
+        s.seekg(0, std::ios::beg);
+        return len;
+    };
+
+    std::streamoff len1 = get_length(s1);
+    std::streamoff len2 = get_length(s2);
+
+    if (len1 != len2) {
+        return false;
+    }
+
+    if (len1 == 0) {
+        return true;
+    }
+
+    constexpr int64_t chunk_size = 1024L * 2L;
+    char buffer1[chunk_size];
+    char buffer2[chunk_size];
+
+    while (len1 > 0) {
+        int64_t chunk = std::min(static_cast<int64_t>(len1), chunk_size);
+
+        s1.read(buffer1, chunk);
+        s2.read(buffer2, chunk);
+
+        if (!s1 || !s2 || std::memcmp(buffer1, buffer2, chunk) != 0) {
+            return false;
+        }
+
+        len1 -= chunk;
+    }
+    return true;
 }
 
 }  // namespace vsag

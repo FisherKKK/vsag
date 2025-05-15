@@ -52,7 +52,13 @@ const char* const METRIC_COSINE = "cosine";
 const char* const METRIC_IP = "ip";
 const char* const DATATYPE_FLOAT32 = "float32";
 const char* const DATATYPE_INT8 = "int8";
+const char* const DATATYPE_SPARSE = "sparse";
 const char* const BLANK_INDEX = "blank_index";
+
+// environment-level-parameters
+const char* const PREFETCH_STRIDE_VISIT = "prefetch_stride_visit";
+const char* const PREFETCH_STRIDE_CODE = "prefetch_stride_codes";
+const char* const PREFETCH_DEPTH_CODE = "prefetch_depth_codes";
 
 // parameters
 const char* const PARAMETER_DTYPE = "dtype";
@@ -84,6 +90,7 @@ const char* const ODESCENT_PARAMETER_BUILD_BLOCK_SIZE = "build_block_size";
 
 const char* const DISKANN_GRAPH_TYPE_VAMANA = "vamana";
 const char* const GRAPH_TYPE_ODESCENT = "odescent";
+const char* const GRAPH_TYPE_NSW = "nsw";
 
 const char* const HNSW_PARAMETER_EF_RUNTIME = "ef_search";
 const char* const HNSW_PARAMETER_M = "max_degree";
@@ -126,11 +133,13 @@ const char* const RABITQ_PCA_DIM = "rabitq_pca_dim";
 const char* const RABITQ_BITS_PER_DIM_QUERY = "rabitq_bits_per_dim_query";
 
 const char* const HGRAPH_USE_REORDER = HGRAPH_USE_REORDER_KEY;
+const char* const HGRAPH_USE_ELP_OPTIMIZER = HGRAPH_USE_ELP_OPTIMIZER_KEY;
 const char* const HGRAPH_IGNORE_REORDER = "ignore_reorder";
 const char* const HGRAPH_BASE_QUANTIZATION_TYPE = "base_quantization_type";
 const char* const HGRAPH_GRAPH_MAX_DEGREE = "max_degree";
 const char* const HGRAPH_BUILD_EF_CONSTRUCTION = "ef_construction";
 const char* const HGRAPH_INIT_CAPACITY = "hgraph_init_capacity";
+const char* const HGRAPH_GRAPH_TYPE = "graph_type";
 const char* const HGRAPH_BUILD_THREAD_COUNT = "build_thread_count";
 const char* const HGRAPH_PRECISE_QUANTIZATION_TYPE = "precise_quantization_type";
 const char* const HGRAPH_BASE_IO_TYPE = "base_io_type";
@@ -151,6 +160,7 @@ const char* const IVF_TRAIN_TYPE = "ivf_train_type";
 const char* const IVF_BUCKETS_COUNT = "buckets_count";
 const char* const IVF_BASE_QUANTIZATION_TYPE = "base_quantization_type";
 const char* const IVF_BASE_IO_TYPE = "base_io_type";
+const char* const IVF_BASE_PQ_DIM = "base_pq_dim";
 const char* const IVF_BASE_FILE_PATH = "base_file_path";
 const char* const IVF_PRECISE_QUANTIZATION_TYPE = "precise_quantization_type";
 const char* const IVF_PRECISE_IO_TYPE = "precise_io_type";

@@ -18,6 +18,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "vsag/constants.h"
+
 namespace vsag {
 // Index Type
 const char* const INDEX_TYPE_HGRAPH = "hgraph";
@@ -25,6 +27,7 @@ const char* const INDEX_TYPE_IVF = "ivf";
 
 // Parameter key for hgraph
 const char* const HGRAPH_USE_REORDER_KEY = "use_reorder";
+const char* const HGRAPH_USE_ELP_OPTIMIZER_KEY = "use_elp_optimizer";
 const char* const HGRAPH_IGNORE_REORDER_KEY = "ignore_reorder";
 const char* const HGRAPH_GRAPH_KEY = "graph";
 const char* const HGRAPH_BASE_CODES_KEY = "base_codes";
@@ -55,6 +58,7 @@ const char* const QUANTIZATION_TYPE_VALUE_FP32 = "fp32";
 const char* const QUANTIZATION_TYPE_VALUE_FP16 = "fp16";
 const char* const QUANTIZATION_TYPE_VALUE_BF16 = "bf16";
 const char* const QUANTIZATION_TYPE_VALUE_PQ = "pq";
+const char* const QUANTIZATION_TYPE_VALUE_PQFS = "pqfs";
 const char* const QUANTIZATION_TYPE_VALUE_RABITQ = "rabitq";
 const char* const QUANTIZATION_TYPE_VALUE_SPARSE = "sparse";
 
@@ -74,6 +78,7 @@ const char* const BUILD_THREAD_COUNT = "build_thread_count";
 const char* const BUILD_EF_CONSTRUCTION = "ef_construction";
 
 const char* const SPARSE_NEED_SORT = "need_sort";
+const char* const GRAPH_TYPE_KEY = "graph_type";
 
 const char* const BUCKET_PARAMS_KEY = "buckets_params";
 const char* const NO_BUILD_LEVELS = "no_build_levels";
@@ -94,6 +99,7 @@ const std::unordered_map<std::string, std::string> DEFAULT_MAP = {
     {"INDEX_TYPE_HGRAPH", INDEX_TYPE_HGRAPH},
     {"INDEX_TYPE_IVF", INDEX_TYPE_IVF},
     {"HGRAPH_USE_REORDER_KEY", HGRAPH_USE_REORDER_KEY},
+    {"HGRAPH_USE_ELP_OPTIMIZER_KEY", HGRAPH_USE_ELP_OPTIMIZER_KEY},
     {"HGRAPH_IGNORE_REORDER_KEY", HGRAPH_IGNORE_REORDER_KEY},
     {"HGRAPH_GRAPH_KEY", HGRAPH_GRAPH_KEY},
     {"HGRAPH_BASE_CODES_KEY", HGRAPH_BASE_CODES_KEY},
@@ -108,11 +114,13 @@ const std::unordered_map<std::string, std::string> DEFAULT_MAP = {
     {"QUANTIZATION_TYPE_VALUE_SQ8", QUANTIZATION_TYPE_VALUE_SQ8},
     {"QUANTIZATION_TYPE_VALUE_FP32", QUANTIZATION_TYPE_VALUE_FP32},
     {"QUANTIZATION_TYPE_VALUE_PQ", QUANTIZATION_TYPE_VALUE_PQ},
+    {"QUANTIZATION_TYPE_VALUE_PQFS", QUANTIZATION_TYPE_VALUE_PQFS},
     {"QUANTIZATION_TYPE_VALUE_FP16", QUANTIZATION_TYPE_VALUE_FP16},
     {"QUANTIZATION_TYPE_VALUE_BF16", QUANTIZATION_TYPE_VALUE_BF16},
     {"QUANTIZATION_TYPE_VALUE_RABITQ", QUANTIZATION_TYPE_VALUE_RABITQ},
     {"PRODUCT_QUANTIZATION_DIM", PRODUCT_QUANTIZATION_DIM},
     {"PRODUCT_QUANTIZATION_BITS", PRODUCT_QUANTIZATION_BITS},
+    {"GRAPH_TYPE_NSW", GRAPH_TYPE_NSW},
     {"QUANTIZATION_PARAMS_KEY", QUANTIZATION_PARAMS_KEY},
     {"GRAPH_PARAM_MAX_DEGREE", GRAPH_PARAM_MAX_DEGREE},
     {"GRAPH_PARAM_INIT_MAX_CAPACITY", GRAPH_PARAM_INIT_MAX_CAPACITY},

@@ -70,10 +70,10 @@ public:
     ComputeDistImpl(Computer<ProductQuantizer>& computer, const uint8_t* codes, float* dists) const;
 
     inline void
-    ComputeBatchDistImpl(Computer<ProductQuantizer<metric>>& computer,
-                         uint64_t count,
-                         const uint8_t* codes,
-                         float* dists) const;
+    ScanBatchDistImpl(Computer<ProductQuantizer<metric>>& computer,
+                      uint64_t count,
+                      const uint8_t* codes,
+                      float* dists) const;
 
     inline void
     SerializeImpl(StreamWriter& writer);
@@ -162,7 +162,7 @@ ProductQuantizer<metric>::TrainImpl(const vsag::DataType* data, uint64_t count) 
         cluster.Run(CENTROIDS_PER_SUBSPACE, slice.data(), count);
         memcpy(this->codebooks_.data() + i * CENTROIDS_PER_SUBSPACE * subspace_dim_,
                cluster.k_centroids_,
-               CENTROIDS_PER_SUBSPACE * subspace_dim_);
+               CENTROIDS_PER_SUBSPACE * subspace_dim_ * sizeof(float));
     }
 
     this->is_trained_ = true;
@@ -328,10 +328,10 @@ ProductQuantizer<metric>::ComputeDistImpl(Computer<ProductQuantizer>& computer,
 
 template <MetricType metric>
 void
-ProductQuantizer<metric>::ComputeBatchDistImpl(Computer<ProductQuantizer<metric>>& computer,
-                                               uint64_t count,
-                                               const uint8_t* codes,
-                                               float* dists) const {
+ProductQuantizer<metric>::ScanBatchDistImpl(Computer<ProductQuantizer<metric>>& computer,
+                                            uint64_t count,
+                                            const uint8_t* codes,
+                                            float* dists) const {
     // TODO(LHT): Optimize batch for simd
     for (uint64_t i = 0; i < count; ++i) {
         this->ComputeDistImpl(computer, codes + i * this->code_size_, dists + i);

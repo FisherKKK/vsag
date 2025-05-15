@@ -67,10 +67,10 @@ public:
     ComputeDistImpl(Computer<SQ8Quantizer>& computer, const uint8_t* codes, float* dists) const;
 
     inline void
-    ComputeBatchDistImpl(Computer<SQ8Quantizer<metric>>& computer,
-                         uint64_t count,
-                         const uint8_t* codes,
-                         float* dists) const;
+    ScanBatchDistImpl(Computer<SQ8Quantizer<metric>>& computer,
+                      uint64_t count,
+                      const uint8_t* codes,
+                      float* dists) const;
 
     inline void
     SerializeImpl(StreamWriter& writer);
@@ -211,8 +211,7 @@ SQ8Quantizer<metric>::ProcessQueryImpl(const DataType* query,
             reinterpret_cast<uint8_t*>(this->allocator_->Allocate(this->dim_ * sizeof(float)));
     } catch (const std::bad_alloc& e) {
         computer.buf_ = nullptr;
-        logger::error("bad alloc when init computer buf");
-        throw std::bad_alloc();
+        throw VsagException(ErrorType::NO_ENOUGH_MEMORY, "bad alloc when init computer buf");
     }
     if constexpr (metric == MetricType::METRIC_TYPE_COSINE) {
         Normalize(query, reinterpret_cast<float*>(computer.buf_), this->dim_);
@@ -242,10 +241,10 @@ SQ8Quantizer<metric>::ComputeDistImpl(Computer<SQ8Quantizer>& computer,
 
 template <MetricType metric>
 void
-SQ8Quantizer<metric>::ComputeBatchDistImpl(Computer<SQ8Quantizer<metric>>& computer,
-                                           uint64_t count,
-                                           const uint8_t* codes,
-                                           float* dists) const {
+SQ8Quantizer<metric>::ScanBatchDistImpl(Computer<SQ8Quantizer<metric>>& computer,
+                                        uint64_t count,
+                                        const uint8_t* codes,
+                                        float* dists) const {
     // TODO(LHT): Optimize batch for simd
     for (uint64_t i = 0; i < count; ++i) {
         this->ComputeDistImpl(computer, codes + i * this->code_size_, dists + i);

@@ -86,10 +86,10 @@ public:
     ComputeDistImpl(Computer<RaBitQuantizer>& computer, const uint8_t* codes, float* dists) const;
 
     inline void
-    ComputeBatchDistImpl(Computer<RaBitQuantizer<metric>>& computer,
-                         uint64_t count,
-                         const uint8_t* codes,
-                         float* dists) const;
+    ScanBatchDistImpl(Computer<RaBitQuantizer<metric>>& computer,
+                      uint64_t count,
+                      const uint8_t* codes,
+                      float* dists) const;
 
     inline void
     ReleaseComputerImpl(Computer<RaBitQuantizer<metric>>& computer) const;
@@ -295,6 +295,9 @@ RaBitQuantizer<metric>::TrainImpl(const DataType* data, uint64_t count) {
         centroid_[d] = centroid_[d] / (float)count;
     }
 
+    // generate rom
+    rom_->GenerateRandomOrthogonalMatrixWithRetry();
+
     // validate rom
     int retries = MAX_RETRIES;
     bool successful_gen = true;
@@ -464,7 +467,8 @@ RaBitQuantizer<metric>::ComputeQueryBaseImpl(const uint8_t* query_codes,
 template <MetricType metric>
 inline float
 RaBitQuantizer<metric>::ComputeImpl(const uint8_t* codes1, const uint8_t* codes2) const {
-    throw std::runtime_error("building the index is not supported using RabbitQ alone");
+    throw VsagException(ErrorType::INTERNAL_ERROR,
+                        "building the index is not supported using RabbitQ alone");
 }
 
 template <MetricType metric>
@@ -582,10 +586,10 @@ RaBitQuantizer<metric>::ComputeDistImpl(Computer<RaBitQuantizer>& computer,
 
 template <MetricType metric>
 void
-RaBitQuantizer<metric>::ComputeBatchDistImpl(Computer<RaBitQuantizer<metric>>& computer,
-                                             uint64_t count,
-                                             const uint8_t* codes,
-                                             float* dists) const {
+RaBitQuantizer<metric>::ScanBatchDistImpl(Computer<RaBitQuantizer<metric>>& computer,
+                                          uint64_t count,
+                                          const uint8_t* codes,
+                                          float* dists) const {
     for (uint64_t i = 0; i < count; ++i) {
         // TODO(ZXY): use batch optimize
         this->ComputeDistImpl(computer, codes + i * this->code_size_, dists + i);

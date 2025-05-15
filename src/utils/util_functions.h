@@ -70,4 +70,10 @@ CreateFastDataset(int64_t dim, Allocator* allocator);
 std::vector<int>
 select_k_numbers(int64_t n, int k);
 
+uint64_t
+next_multiple_of_power_of_two(uint64_t x, uint64_t n);
+
+bool
+check_equal_on_string_stream(std::stringstream& s1, std::stringstream& s2);
+
 }  // namespace vsag
