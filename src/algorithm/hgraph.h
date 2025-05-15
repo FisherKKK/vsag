@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <vsag/vsag.h>
+
 #include <nlohmann/json.hpp>
 #include <random>
 #include <shared_mutex>
@@ -195,6 +197,17 @@ private:
             const FlattenInterfacePtr& flatten_interface,
             MaxHeap& candidate_heap,
             int64_t k) const;
+
+#if USE_ALIFLASH == 1
+    void
+    reorder_aliflash(const float* query,
+            const FlattenInterfacePtr& flatten_interface,
+            MaxHeap& candidate_heap,
+            int64_t k) const;
+
+private:
+    std::shared_ptr<AliFlashClient> client_;
+#endif
 
 private:
     FlattenInterfacePtr basic_flatten_codes_{nullptr};

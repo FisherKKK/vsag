@@ -88,6 +88,11 @@ HGraph::HGraph(const HGraphParameterPtr& hgraph_param, const vsag::IndexCommonPa
         this->build_pool_ = SafeThreadPool::FactoryDefaultThreadPool();
         this->build_pool_->SetPoolSize(build_thread_count_);
     }
+
+#if USE_ALIFLASH
+    client_ = AliFlashClient::GetInstance(dim_);
+#endif
+
 }
 void
 HGraph::Train(const DatasetPtr& base) {
@@ -851,6 +856,41 @@ HGraph::InitFeatures() {
         this->index_feature_list_->SetFeature(IndexFeature::SUPPORT_KNN_SEARCH_WITH_EX_FILTER);
     }
 }
+
+#if USE_ALIFLASH == 1
+void
+HGraph::reorder_aliflash(const float* query,
+                const FlattenInterfacePtr& flatten_interface,
+                MaxHeap& candidate_heap,
+                int64_t k) const {
+    uint64_t size = candidate_heap.size();
+    if (k <= 0) {
+        k = static_cast<int64_t>(size);
+    }
+    Vector<uint64_t> ids(size, allocator_);
+    Vector<float> dists(size, allocator_);
+    uint64_t idx = 0;
+    while (not candidate_heap.empty()) {
+        ids[idx] = candidate_heap.top().second;
+        ++idx;
+        candidate_heap.pop();
+    }
+
+    auto query_id = client_->begin_single();
+    client_->cal_multi((void*) query, ids.data(), dists.data(), size, query_id);
+    client_->end_single(query_id);
+
+    for (uint64_t i = 0; i < size; ++i) {
+        if (candidate_heap.size() < k or dists[i] <= candidate_heap.top().first) {
+            candidate_heap.emplace(dists[i], ids[i]);
+        }
+        if (candidate_heap.size() > k) {
+            candidate_heap.pop();
+        }
+    }
+}
+
+#endif
 
 void
 HGraph::reorder(const float* query,

@@ -16,6 +16,7 @@
 #include "./search_eval_case.h"
 
 #include <omp.h>
+#include <vsag/vsag.h>
 
 #include <cstdio>
 #include <fstream>
@@ -56,6 +57,13 @@ SearchEvalCase::SearchEvalCase(const std::string& dataset_path,
                                vsag::IndexPtr index,
                                EvalConfig config)
     : EvalCase(dataset_path, index_path, index), config_(std::move(config)) {
+#if USE_ALIFLASH == 1
+    auto aliflash_client = AliFlashClient::GetInstance(dataset_ptr_->GetDim());
+    aliflash_client->open();
+    aliflash_client->upload((float*)dataset_ptr_->GetTrain(), dataset_ptr_->GetNumberOfBase());
+#endif
+
+
     auto search_mode = config_.search_mode;
     if (search_mode == "knn") {
         this->search_type_ = SearchType::KNN;
