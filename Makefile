@@ -4,6 +4,8 @@ CMAKE_INSTALL_PREFIX ?= "/usr/local/"
 COMPILE_JOBS ?= 6
 DEBUG_BUILD_DIR ?= "./build/"
 RELEASE_BUILD_DIR ?= "./build-release/"
+ALIFLASH_DEBUG_BUILD_DIR ?= "./aliflash-build/"
+ALIFLASH_RELEASE_BUILD_DIR ?= "./aliflash-build-release/"
 
 OTHER_DEFINE=""
 ifdef EXTRA_DEFINED
@@ -36,8 +38,13 @@ help:                    ## Show the help.
 ## ================ development ================
 .PHONY: debug
 debug:                   ## Build vsag with debug options. -DENABLE_ALIFLASH=ON
-	cmake ${VSAG_CMAKE_ARGS} -B${DEBUG_BUILD_DIR} -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=OFF -DENABLE_CCACHE=ON -DENABLE_ALIFLASH=ON
+	cmake ${VSAG_CMAKE_ARGS} -B${DEBUG_BUILD_DIR} -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=OFF -DENABLE_CCACHE=ON
 	cmake --build ${DEBUG_BUILD_DIR} --parallel ${COMPILE_JOBS}
+
+.PHONY: ali_debug
+ali_debug:                   ## Build vsag with debug options. -DENABLE_ALIFLASH=ON
+	cmake ${VSAG_CMAKE_ARGS} -B${ALIFLASH_DEBUG_BUILD_DIR} -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=OFF -DENABLE_CCACHE=ON -DENABLE_ALIFLASH=ON
+	cmake --build ${ALIFLASH_DEBUG_BUILD_DIR} --parallel ${COMPILE_JOBS}
 
 .PHONY: test
 test:                    ## Build and run unit tests.
@@ -115,6 +122,11 @@ test_tsan_parallel: tsan ## Run unit tests parallel with ThreadSanitizer option.
 release:                 ## Build vsag with release options. ## -DENABLE_ALIFLASH=ON
 	cmake ${VSAG_CMAKE_ARGS} -B${RELEASE_BUILD_DIR} -DCMAKE_BUILD_TYPE=Release 
 	cmake --build ${RELEASE_BUILD_DIR} --parallel ${COMPILE_JOBS}
+
+.PHONY: ali_release
+ali_release:                 ## Build vsag with release options. ## -DENABLE_ALIFLASH=ON
+	cmake ${VSAG_CMAKE_ARGS} -B${ALIFLASH_RELEASE_BUILD_DIR} -DCMAKE_BUILD_TYPE=Release -DENABLE_ALIFLASH=ON
+	cmake --build ${ALIFLASH_RELEASE_BUILD_DIR} --parallel ${COMPILE_JOBS}
 
 .PHONY: dist-old-abi
 dist-old-abi:            ## Build vsag with distribution options.
