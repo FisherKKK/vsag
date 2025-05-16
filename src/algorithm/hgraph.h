@@ -217,10 +217,10 @@ private:
 
 #if USE_ALIFLASH == 1
     void
-    reorder_aliflash(const float* query,
-            const FlattenInterfacePtr& flatten_interface,
-            MaxHeap& candidate_heap,
-            int64_t k) const;
+    reorder_aliflash(const void* query,
+                const FlattenInterfacePtr& flatten_interface,
+                const DistHeapPtr& candidate_heap,
+                int64_t k) const;
 
 private:
     std::shared_ptr<AliFlashClient> client_;

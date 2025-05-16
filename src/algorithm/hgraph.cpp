@@ -204,6 +204,9 @@ HGraph::Add(const DatasetPtr& data) {
             this->extra_infos_->InsertExtraInfo(extra_info, inner_id);
         }
         this->add_one_point(data, level, inner_id);
+        if (inner_id % 10000 == 0) {
+            std::cout << "deal with #id: " << inner_id << std::endl;
+        }
     };
 
     std::vector<std::future<void>> futures;
@@ -306,7 +309,11 @@ HGraph::KnnSearch(const DatasetPtr& query,
         raw_query, this->bottom_graph_, this->basic_flatten_codes_, search_param);
 
     if (use_reorder_) {
+#if USE_ALIFLASH == 1
+        this->reorder_aliflash(raw_query, this->high_precise_codes_, search_result, k);
+#else
         this->reorder(raw_query, this->high_precise_codes_, search_result, k);
+#endif
     }
 
     while (search_result->Size() > k) {
@@ -949,21 +956,21 @@ HGraph::InitFeatures() {
 
 #if USE_ALIFLASH == 1
 void
-HGraph::reorder_aliflash(const float* query,
+HGraph::reorder_aliflash(const void* query,
                 const FlattenInterfacePtr& flatten_interface,
-                MaxHeap& candidate_heap,
+                const DistHeapPtr& candidate_heap,
                 int64_t k) const {
-    uint64_t size = candidate_heap.size();
+    uint64_t size = candidate_heap->Size();
     if (k <= 0) {
         k = static_cast<int64_t>(size);
     }
     Vector<uint64_t> ids(size, allocator_);
     Vector<float> dists(size, allocator_);
     uint64_t idx = 0;
-    while (not candidate_heap.empty()) {
-        ids[idx] = candidate_heap.top().second;
+    while (not candidate_heap->Empty()) {
+        ids[idx] = candidate_heap->Top().second;
         ++idx;
-        candidate_heap.pop();
+        candidate_heap->Pop();
     }
 
     auto query_id = client_->begin_single();
@@ -971,11 +978,11 @@ HGraph::reorder_aliflash(const float* query,
     client_->end_single(query_id);
 
     for (uint64_t i = 0; i < size; ++i) {
-        if (candidate_heap.size() < k or dists[i] <= candidate_heap.top().first) {
-            candidate_heap.emplace(dists[i], ids[i]);
+        if (candidate_heap->Size() < k or dists[i] <= candidate_heap->Top().first) {
+            candidate_heap->Push(dists[i], ids[i]);
         }
-        if (candidate_heap.size() > k) {
-            candidate_heap.pop();
+        if (candidate_heap->Size() > k) {
+            candidate_heap->Pop();
         }
     }
 }
