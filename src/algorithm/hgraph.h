@@ -54,7 +54,12 @@ public:
     HGraph(const ParamPtr& param, const IndexCommonParam& common_param)
         : HGraph(std::dynamic_pointer_cast<HGraphParameter>(param), common_param){};
 
-    ~HGraph() override = default;
+    ~HGraph() override {
+        std::cout << "Traversal time: " << latency_info.traversal_time
+                  << ", reorder time: " << latency_info.reorder_time
+                  << ", overall time: " << latency_info.overall_time
+                  << std::endl;
+    }
 
     [[nodiscard]] std::string
     GetName() const override {
@@ -139,6 +144,15 @@ public:
         this->build_thread_count_ = count;
         this->build_pool_->SetPoolSize(count);
     }
+
+    using Clock = std::chrono::high_resolution_clock;
+    mutable struct {
+        double traversal_time{0};
+        double reorder_time{0};
+        double overall_time{0};
+        double query_num{0};
+        std::mutex mutex;
+    } latency_info;
 
 private:
     const void*

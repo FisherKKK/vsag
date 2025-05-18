@@ -280,6 +280,9 @@ HGraph::KnnSearch(const DatasetPtr& query,
     search_param.ef = 1;
     search_param.is_inner_id_allowed = nullptr;
     const auto* raw_query = get_data(query);
+
+    auto begin = Clock::now();
+
     for (auto i = static_cast<int64_t>(this->route_graphs_.size() - 1); i >= 0; --i) {
         auto result = this->search_one_graph(
             raw_query, this->route_graphs_[i], this->basic_flatten_codes_, search_param);
@@ -308,6 +311,7 @@ HGraph::KnnSearch(const DatasetPtr& query,
     auto search_result = this->search_one_graph(
         raw_query, this->bottom_graph_, this->basic_flatten_codes_, search_param);
 
+    auto middle =  Clock::now();
     if (use_reorder_) {
 #if USE_ALIFLASH == 1
         this->reorder_aliflash(raw_query, this->high_precise_codes_, search_result, k);
@@ -315,6 +319,18 @@ HGraph::KnnSearch(const DatasetPtr& query,
         this->reorder(raw_query, this->high_precise_codes_, search_result, k);
 #endif
     }
+    auto end =  Clock::now();
+
+    {
+        std::unique_lock<std::mutex> lk(latency_info.mutex);
+        auto graph_time =  std::chrono::duration<double, std::milli>(middle - begin).count();
+        auto reorder_time =  std::chrono::duration<double, std::milli>(end - middle).count();
+        auto overall_time =  std::chrono::duration<double, std::milli>(end - begin).count();
+        latency_info.traversal_time += graph_time;
+        latency_info.reorder_time += reorder_time;
+        latency_info.overall_time += overall_time;
+    }
+
 
     while (search_result->Size() > k) {
         search_result->Pop();
