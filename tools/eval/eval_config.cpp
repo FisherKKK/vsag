@@ -41,6 +41,8 @@ EvalConfig::Load(argparse::ArgumentParser& parser) {
 
     config.top_k = parser.get<int>("--topk");
     config.radius = parser.get<float>("--range");
+    config.num_threads_searching = parser.get<int>("--num_threads_searching");
+    config.num_search_turn = parser.get<int>("--num_search_turn");
 
     config.delete_index_after_search = parser.get<bool>("--delete-index-after-search");
 

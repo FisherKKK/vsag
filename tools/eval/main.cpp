@@ -84,6 +84,16 @@ parse_args(argparse::ArgumentParser& parser, int argc, char** argv) {
         .help("The range value for range search or range_filter search")
         .scan<'f', float>();
 
+    // num search, num search turn
+    parser.add_argument("--num_threads_searching")
+        .default_value(1)
+        .help("The number of threads searching")
+        .scan<'i', int>();
+    parser.add_argument("--num_search_turn")
+        .default_value(1)
+        .help("The number of search turn")
+        .scan<'i', int>();
+
     // metrics
     parser.add_argument("--disable_recall")
         .default_value(false)

@@ -47,6 +47,7 @@ public:
 
     int32_t num_threads_building{1};
     int32_t num_threads_searching{1};
+    int32_t num_search_turn{1};
 
     bool enable_recall{true};
     bool enable_percent_recall{true};
