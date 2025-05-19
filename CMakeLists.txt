@@ -48,7 +48,18 @@ option (DISABLE_SSE_FORCE "Force disable sse and higher instructions" OFF)
 option (DISABLE_AVX_FORCE "Force disable avx and higher instructions" OFF)
 option (DISABLE_AVX2_FORCE "Force disable avx2 and higher instructions" OFF)
 option (DISABLE_AVX512_FORCE "Force disable avx512 instructions" OFF)
+option (ENABLE_ALIFLASH "Whether enable aliflash" OFF)
 
+
+if (ENABLE_ALIFLASH)
+    add_definitions (-DUSE_ALIFLASH=1)
+    set (CMAKE_CXX_FLAGS  "-w")
+    message (STATUS "Using aliflash")
+else ()
+    add_definitions (-DUSE_ALIFLASH=0)
+    set (CMAKE_CXX_FLAGS  "-w")
+    message (STATUS "Using local ssd")
+endif ()
 
 if (ENABLE_CXX11_ABI)
     add_definitions (-D_GLIBCXX_USE_CXX11_ABI=1)

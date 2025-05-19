@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <iostream>
 #include <utility>
 
 #include "async_io_parameter.h"
@@ -30,6 +31,7 @@ public:
         : BasicIO<AsyncIO>(allocator), filepath_(std::move(filename)) {
         this->rfd_ = open(filepath_.c_str(), O_CREAT | O_RDWR | O_DIRECT, 0644);
         this->wfd_ = open(filepath_.c_str(), O_CREAT | O_RDWR, 0644);
+        std::cout << "Using async io" << std::endl;
     }
 
     explicit AsyncIO(const AsyncIOParameterPtr& io_param, const IndexCommonParam& common_param)

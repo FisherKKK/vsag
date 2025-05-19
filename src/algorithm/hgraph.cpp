@@ -92,6 +92,10 @@ HGraph::HGraph(const HGraphParameterPtr& hgraph_param, const vsag::IndexCommonPa
         this->build_pool_ = SafeThreadPool::FactoryDefaultThreadPool();
     }
     this->init_features();
+
+#if USE_ALIFLASH
+    client_ = AliFlashClient::GetInstance(dim_);
+#endif
 }
 void
 HGraph::Train(const DatasetPtr& base) {
@@ -140,6 +144,9 @@ HGraph::Add(const DatasetPtr& data) {
             this->extra_infos_->InsertExtraInfo(extra_info, inner_id);
         }
         this->add_one_point(data, level, inner_id);
+        if (inner_id % 10000 == 0) {
+            std::cout << "deal with #id: " << inner_id << std::endl;
+        }
     };
 
     std::vector<std::future<void>> futures;
@@ -210,6 +217,8 @@ HGraph::KnnSearch(const DatasetPtr& query,
     search_param.topk = 1;
     search_param.ef = 1;
     search_param.is_inner_id_allowed = nullptr;
+    auto begin = Clock::now();
+
     for (auto i = static_cast<int64_t>(this->route_graphs_.size() - 1); i >= 0; --i) {
         auto result = this->search_one_graph(query->GetFloat32Vectors(),
                                              this->route_graphs_[i],
@@ -234,8 +243,25 @@ HGraph::KnnSearch(const DatasetPtr& query,
     auto search_result = this->search_one_graph(
         query->GetFloat32Vectors(), this->bottom_graph_, this->basic_flatten_codes_, search_param);
 
+    auto middle =  Clock::now();
     if (use_reorder_) {
+#if USE_ALIFLASH == 1
+        this->reorder_aliflash(query->GetFloat32Vectors(), this->high_precise_codes_, search_result, k);
+#else
         this->reorder(query->GetFloat32Vectors(), this->high_precise_codes_, search_result, k);
+#endif
+    }
+    auto end =  Clock::now();
+
+    {
+        std::unique_lock<std::mutex> lk(latency_info.mutex);
+        auto graph_time =  std::chrono::duration<double, std::milli>(middle - begin).count();
+        auto reorder_time =  std::chrono::duration<double, std::milli>(end - middle).count();
+        auto overall_time =  std::chrono::duration<double, std::milli>(end - begin).count();
+        latency_info.traversal_time += graph_time;
+        latency_info.reorder_time += reorder_time;
+        latency_info.overall_time += overall_time;
+        latency_info.query_num += 1;
     }
 
     while (search_result.size() > k) {
@@ -863,6 +889,40 @@ HGraph::init_features() {
         this->index_feature_list_->SetFeature(IndexFeature::SUPPORT_KNN_SEARCH_WITH_EX_FILTER);
     }
 }
+
+#if USE_ALIFLASH == 1
+void
+HGraph::reorder_aliflash(const float* query,
+                const FlattenInterfacePtr& flatten_interface,
+                MaxHeap& candidate_heap,
+                int64_t k) const {
+    uint64_t size = candidate_heap.size();
+    if (k <= 0) {
+        k = static_cast<int64_t>(size);
+    }
+    Vector<uint64_t> ids(size, allocator_);
+    Vector<float> dists(size, allocator_);
+    uint64_t idx = 0;
+    while (not candidate_heap.empty()) {
+        ids[idx] = candidate_heap.top().second;
+        ++idx;
+        candidate_heap.pop();
+    }
+
+    auto query_id = client_->begin_single();
+    client_->cal_multi((void*) query, ids.data(), dists.data(), size, query_id);
+    client_->end_single(query_id);
+
+    for (uint64_t i = 0; i < size; ++i) {
+        if (candidate_heap.size() < k or dists[i] <= candidate_heap.top().first) {
+            candidate_heap.emplace(dists[i], ids[i]);
+        }
+        if (candidate_heap.size() > k) {
+            candidate_heap.pop();
+        }
+    }
+}
+#endif
 
 void
 HGraph::reorder(const float* query,

@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <vsag/vsag.h>
+
 #include <nlohmann/json.hpp>
 #include <random>
 #include <shared_mutex>
@@ -51,7 +53,13 @@ public:
     HGraph(const ParamPtr& param, const IndexCommonParam& common_param)
         : HGraph(std::dynamic_pointer_cast<HGraphParameter>(param), common_param){};
 
-    ~HGraph() override = default;
+    ~HGraph() override {
+        std::cout << "Traversal time: " << latency_info.traversal_time
+                  << ", reorder time: " << latency_info.reorder_time
+                  << ", overall time: " << latency_info.overall_time
+                  << ", query number: " << latency_info.query_num
+                  << std::endl;
+    }
 
     [[nodiscard]] std::string
     GetName() const override {
@@ -131,6 +139,15 @@ public:
         this->build_pool_->SetPoolSize(count);
     }
 
+    using Clock = std::chrono::high_resolution_clock;
+    mutable struct {
+        double traversal_time{0};
+        double reorder_time{0};
+        double overall_time{0};
+        double query_num{0};
+        std::mutex mutex;
+    } latency_info;
+
 private:
     int
     get_random_level() {
@@ -192,6 +209,17 @@ private:
             const FlattenInterfacePtr& flatten_interface,
             MaxHeap& candidate_heap,
             int64_t k) const;
+
+#if USE_ALIFLASH == 1
+    void
+    reorder_aliflash(const float* query,
+                const FlattenInterfacePtr& flatten_interface,
+                MaxHeap& candidate_heap,
+                int64_t k) const;
+
+private:
+    std::shared_ptr<AliFlashClient> client_;
+#endif
 
 private:
     FlattenInterfacePtr basic_flatten_codes_{nullptr};
