@@ -57,7 +57,7 @@ public:
     uint64_t offset;
     uint8_t* align_data{nullptr};
 
-    static constexpr int64_t ALIGN_BIT = 9;
+    static constexpr int64_t ALIGN_BIT = 12;
 
     static constexpr int64_t ALIGN_SIZE = 1 << ALIGN_BIT;
 
