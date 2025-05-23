@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <vsag/vsag.h>
+
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -137,6 +139,10 @@ public:
 
     Allocator* const allocator_{nullptr};
 
+#if ALL_IN_ALIFLASH == 1
+    std::shared_ptr<AliFlashClient> client_;
+#endif
+
 private:
     inline void
     query(float* result_dists,
@@ -216,6 +222,10 @@ FlattenDataCell<QuantTmpl, IOTmpl>::FlattenDataCell(const QuantizerParamPtr& qua
     this->code_size_ = quantizer_->GetCodeSize();
     this->force_in_memory_io_ =
         std::make_shared<MemoryBlockIO>(allocator_, Options::Instance().block_size_limit());
+
+#if ALL_IN_ALIFLASH == 1
+    this->client_ = AliFlashClient::GetInstance(quantizer_->dim_);
+#endif
 }
 
 template <typename QuantTmpl, typename IOTmpl>
@@ -317,6 +327,13 @@ FlattenDataCell<QuantTmpl, IOTmpl>::query(float* result_dists,
                                           const std::shared_ptr<Computer<QuantTmpl>>& computer,
                                           const InnerIdType* idx,
                                           InnerIdType id_count) {
+
+#if ALL_IN_ALIFLASH == 1
+    std::vector<uint64_t> ids(idx, idx + id_count);
+    auto query_id = client_->begin_single();
+    client_->cal_multi((void*) computer->buf_, ids.data(), result_dists, id_count, query_id);
+    client_->end_single(query_id);
+#endif
     for (uint32_t i = 0; i < this->prefetch_jump_code_size_ and i < id_count; i++) {
         if (force_in_memory_) {
             this->force_in_memory_io_->Prefetch(

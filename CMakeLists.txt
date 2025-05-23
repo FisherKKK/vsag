@@ -49,12 +49,18 @@ option (DISABLE_AVX_FORCE "Force disable avx and higher instructions" OFF)
 option (DISABLE_AVX2_FORCE "Force disable avx2 and higher instructions" OFF)
 option (DISABLE_AVX512_FORCE "Force disable avx512 instructions" OFF)
 option (ENABLE_ALIFLASH "Whether enable aliflash" OFF)
-
+option (ENABLE_ALL_IN_ALIFLASH "Whether push all calculation to aliflash" OFF)
 
 if (ENABLE_ALIFLASH)
     add_definitions (-DUSE_ALIFLASH=1)
     set (CMAKE_CXX_FLAGS  "-w")
     message (STATUS "Using aliflash")
+
+    if (ENABLE_ALL_IN_ALIFLASH)
+        add_definitions (-DALL_IN_ALIFLASH=1)
+        message (STATUS "Pusing all calculation to aliflash")
+    endif ()
+
 else ()
     add_definitions (-DUSE_ALIFLASH=0)
     set (CMAKE_CXX_FLAGS  "-w")
