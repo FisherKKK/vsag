@@ -85,14 +85,26 @@ struct AliFlashClient {
   }
 
   void open() {
+#ifdef MULTICASE
+      static bool init = false;
+      if (init) return;
+#endif
       database_id_ = pnmesdk_db_open(context_, database_id_, database_name_);
       if (database_id_ == 0) {
           std::cout << "open or create new database failed\n";
           exit(1);
       }
+#ifdef MULTICASE
+      init = true;
+#endif
   }
 
   void upload(float *base_data, size_t vecsize) {
+#ifdef MULTICASE
+      static bool init = false;
+      if (init) return;
+#endif
+
       vecsize_ = vecsize;
 
       std::cout << "Upload ready, " << "vecsize: " << vecsize_
@@ -125,6 +137,9 @@ struct AliFlashClient {
       }
 
       std::cout << "Upload succeed" << std::endl;
+#ifdef MULTICASE
+      init = true;
+#endif
   }
 
   void cal_single(void *query, uint64_t single_id, float *dist, int hnsw_query_id) {

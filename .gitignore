@@ -188,3 +188,8 @@ data/
 /coverage/
 *.gcov
 /dist/
+
+/cmake-build-debug/
+/cmake-build-release/
+/cmake-build-debug-aliflash/
+/cmake-build-release-aliflash/

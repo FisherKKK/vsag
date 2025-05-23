@@ -155,6 +155,7 @@ SearchEvalCase::deserialize() {
 }
 void
 SearchEvalCase::do_knn_search() {
+    std::cout << "Really start searching" << std::endl;
     uint64_t topk = config_.top_k;
     auto query_count = this->dataset_ptr_->GetNumberOfQuery();
     this->logger_->Debug("query count is " + std::to_string(query_count));

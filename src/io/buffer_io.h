@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <iostream>
 #include <utility>
 
 #include "basic_io.h"
@@ -36,7 +37,13 @@ public:
     explicit BufferIO(const IOParamPtr& param, const IndexCommonParam& common_param)
         : BufferIO(std::dynamic_pointer_cast<BufferIOParameter>(param), common_param){};
 
-    ~BufferIO() override = default;
+    ~BufferIO() {
+#ifdef DEBUG_IO
+        std::cout << "IO time: " << io_info.read_time
+                  << ", io number: " << io_info.call_time
+                  << std::endl;
+#endif
+    };
 
     inline void
     WriteImpl(const uint8_t* data, uint64_t size, uint64_t offset) {
@@ -78,10 +85,27 @@ public:
     inline bool
     MultiReadImpl(uint8_t* datas, uint64_t* sizes, uint64_t* offsets, uint64_t count) const {
         bool ret = true;
+#ifdef DEBUG_IO
+        auto b = Clock::now();
+#endif
         for (uint64_t i = 0; i < count; ++i) {
             ret &= ReadImpl(sizes[i], offsets[i], datas);
             datas += sizes[i];
         }
+
+#ifdef DEBUG_IO
+        auto e = Clock::now();
+#endif
+
+#ifdef DEBUG_IO
+        {
+            std::unique_lock<std::mutex> lk(io_info.mutex);
+            auto io_time = std::chrono::duration<double, std::milli>(e - b).count();;
+            io_info.read_time += io_time;
+            io_info.call_time += 1;
+        }
+#endif
+
         return ret;
     }
 
@@ -92,6 +116,15 @@ public:
     InMemoryImpl() {
         return false;
     }
+
+#ifdef DEBUG_IO
+    using Clock = std::chrono::high_resolution_clock;
+    mutable struct {
+        double read_time{0};
+        int64_t call_time{0};
+        std::mutex mutex;
+    } io_info;
+#endif
 
 private:
     std::string filepath_{};

@@ -40,7 +40,28 @@ public:
     explicit AsyncIO(const IOParamPtr& param, const IndexCommonParam& common_param)
         : AsyncIO(std::dynamic_pointer_cast<AsyncIOParameter>(param), common_param){};
 
-    ~AsyncIO() override = default;
+    ~AsyncIO() override {
+#ifdef DEBUG_IO
+        std::cout << "Prepare time: " << io_info.prepare
+                  << ", wait time: " << io_info.wait
+                  << ", copy time: " << io_info.copy
+                  << ", overall time: " << io_info.overall
+                  << ", call number: " << io_info.call_time
+                  << std::endl;
+#endif
+    }
+
+#ifdef DEBUG_IO
+    using Clock = std::chrono::high_resolution_clock;
+    mutable struct {
+        double prepare{0};
+        double wait{0};
+        double copy{0};
+        double overall{0};
+        int64_t call_time{0};
+        std::mutex mutex;
+    } io_info;
+#endif
 
 public:
     inline void
@@ -91,6 +112,9 @@ public:
         uint8_t* cur_data = datas;
         int64_t all_count = count;
         while (all_count > 0) {
+#ifdef DEBUG_IO
+            auto point1 = Clock::now();
+#endif
             count = std::min(IOContext::DEFAULT_REQUEST_COUNT, all_count);
             auto* cb = context->cb_;
             std::vector<DirectIOObject> objs(count);
@@ -110,6 +134,10 @@ public:
                 throw std::runtime_error("io submit failed");
             }
 
+#ifdef DEBUG_IO
+            auto point2 = Clock::now();
+#endif
+
             struct timespec timeout = {1, 0};
             auto num_events = io_getevents(context->ctx_, count, count, context->events_, &timeout);
             if (num_events != count) {
@@ -120,11 +148,35 @@ public:
                 throw std::runtime_error("io async read failed");
             }
 
+#ifdef DEBUG_IO
+            auto point3 = Clock::now();
+#endif
+
             for (int64_t i = 0; i < count; ++i) {
                 memcpy(cur_data, objs[i].data, sizes[i]);
                 cur_data += sizes[i];
                 this->ReleaseImpl(objs[i].data);
             }
+
+#ifdef DEBUG_IO
+            auto point4 = Clock::now();
+#endif
+
+#ifdef DEBUG_IO
+            {
+                std::unique_lock<std::mutex> lk(io_info.mutex);
+                auto prepare_time =  std::chrono::duration<double, std::milli>(point2 - point1).count();
+                auto wait_time =  std::chrono::duration<double, std::milli>(point3 - point2).count();
+                auto copy_time =  std::chrono::duration<double, std::milli>(point4 - point3).count();
+                auto overall_time =  std::chrono::duration<double, std::milli>(point4 - point1).count();
+                io_info.prepare += prepare_time;
+                io_info.wait += wait_time;
+                io_info.copy += copy_time;
+                io_info.overall += overall_time;
+                io_info.call_time += 1;
+            }
+#endif
+
 
             sizes += count;
             offsets += count;

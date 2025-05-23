@@ -1,11 +1,11 @@
 
 CMAKE_GENERATOR ?= "Unix Makefiles"
 CMAKE_INSTALL_PREFIX ?= "/usr/local/"
-COMPILE_JOBS ?= 6
+COMPILE_JOBS ?= 16
 DEBUG_BUILD_DIR ?= "./build/"
 RELEASE_BUILD_DIR ?= "./build-release/"
-ALIFLASH_DEBUG_BUILD_DIR ?= "./aliflash-build/"
-ALIFLASH_RELEASE_BUILD_DIR ?= "./aliflash-build-release/"
+ALIFLASH_DEBUG_BUILD_DIR ?= "./cmake-build-debug-aliflash/"
+ALIFLASH_RELEASE_BUILD_DIR ?= "./cmake-build-release-aliflash/"
 
 OTHER_DEFINE=""
 ifdef EXTRA_DEFINED
