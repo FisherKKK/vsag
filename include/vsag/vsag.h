@@ -174,12 +174,12 @@ struct AliFlashClient {
 
 
   int begin_single() {
-    // std::unique_lock<std::mutex> lk(mutex_);
+    std::unique_lock<std::mutex> lk(mutex_);
     return pnme_get_search_query_id();
   }
 
   void end_single(int query_id) {
-    // std::unique_lock<std::mutex> lk(mutex_);
+    std::unique_lock<std::mutex> lk(mutex_);
     pnme_hnsw_search_end(query_id);
   }
 
@@ -188,7 +188,7 @@ struct AliFlashClient {
   database_context* context_ = nullptr;
   pnmesdk_conf *config_ = nullptr;
   uint64_t database_id_ = 0;
-  char* database_name_ = "ant-vsag-diskann";
+  char* database_name_ = "ant-vsag-hgraph";
   size_t vecsize_ = 0;
   size_t vecdim_ = 0;
   std::mutex mutex_;

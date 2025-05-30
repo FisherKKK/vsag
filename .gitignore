@@ -193,3 +193,5 @@ data/
 /cmake-build-release/
 /cmake-build-debug-aliflash/
 /cmake-build-release-aliflash/
+/cmake-build-release-all-aliflash/
+/cmake-build-debug-all-aliflash/

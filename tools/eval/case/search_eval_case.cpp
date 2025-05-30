@@ -161,8 +161,8 @@ SearchEvalCase::do_knn_search() {
     this->logger_->Debug("query count is " + std::to_string(query_count));
     auto min_query = std::max(query_count, 100'000L);
     for (auto& monitor : this->monitors_) {
+        std::cout << "number of thread search: " << config_.num_threads_searching << std::endl;
         monitor->Start();
-
         omp_set_num_threads(config_.num_threads_searching);
 #pragma omp parallel for schedule(dynamic)
         for (int64_t id = 0; id < min_query; ++id) {

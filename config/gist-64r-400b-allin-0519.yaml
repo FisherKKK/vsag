@@ -1,0 +1,50 @@
+#eval_case0:
+#  datapath: "/data/dataset/gist-960-euclidean.hdf5"
+#  type: "build" # build, search
+#  index_name: "hgraph"
+#  create_params: '{"dim":960,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"fp32","max_degree":64,"ef_construction":400,"use_reorder":false,"build_thread_count":32,"base_io_type":"block_memory_io","base_file_path":"/data/eval/gist_full/base_codes"}}'
+#  search_params: '{"hgraph":{"ef_search":50}}'
+#  index_path: "/data/eval/gist_full/hgraph_fp32_degree_64"
+#  topk: 10
+#  search_mode: "knn" # ["knn", "range", "knn_filter", "range_filter"]
+#  range: 0.5
+#  num_threads_building: 32
+#  num_threads_searching: 1
+eval_case0:
+  datapath: "/data/dataset/gist-960-euclidean.hdf5"
+  type: "search" # build, search
+  index_name: "hgraph"
+  create_params: '{"dim":960,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"fp32","max_degree":64,"ef_construction":400,"use_reorder":false,"build_thread_count":32,"base_io_type":"block_memory_io","base_file_path":"/data/eval/gist_full/base_codes"}}'
+  search_params: '{"hgraph":{"ef_search":200}}'
+  index_path: "/data/eval/gist_full/hgraph_fp32_degree_64"
+  topk: 10
+  search_mode: "knn" # ["knn", "range", "knn_filter", "range_filter"]
+  range: 0.5
+  num_threads_building: 1
+  num_threads_searching: 4
+
+#eval_case2:
+#  datapath: "/data/dataset/gist-960-euclidean.hdf5"
+#  type: "search" # build, search
+#  index_name: "hgraph"
+#  create_params: '{"dim":960,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"sq8_uniform","max_degree":64,"ef_construction":400,"use_reorder":true,"precise_quantization_type":"fp32","build_thread_count":32,"base_io_type":"block_memory_io","base_file_path":"/data/eval/gist/base_codes","precise_io_type":"block_memory_io","precise_file_path":"/data/eval/gist/precise_codes","hgraph_init_capacity":1000000}}'
+#  search_params: '{"hgraph":{"ef_search":100}}'
+#  index_path: "/data/eval/gist/hgraph_sq8_uniform_degree_64"
+#  topk: 10
+#  search_mode: "knn" # ["knn", "range", "knn_filter", "range_filter"]
+#  range: 0.5
+#  num_threads_building: 1
+#  num_threads_searching: 1
+#
+#eval_case3:
+#  datapath: "/data/dataset/gist-960-euclidean.hdf5"
+#  type: "search" # build, search
+#  index_name: "hgraph"
+#  create_params: '{"dim":960,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"sq8_uniform","max_degree":64,"ef_construction":400,"use_reorder":true,"precise_quantization_type":"fp32","build_thread_count":32,"base_io_type":"block_memory_io","base_file_path":"/data/eval/gist/base_codes","precise_io_type":"block_memory_io","precise_file_path":"/data/eval/gist/precise_codes","hgraph_init_capacity":1000000}}'
+#  search_params: '{"hgraph":{"ef_search":200}}'
+#  index_path: "/data/eval/gist/hgraph_sq8_uniform_degree_64"
+#  topk: 10
+#  search_mode: "knn" # ["knn", "range", "knn_filter", "range_filter"]
+#  range: 0.5
+#  num_threads_building: 1
+#  num_threads_searching: 1

@@ -6,6 +6,7 @@ DEBUG_BUILD_DIR ?= "./build/"
 RELEASE_BUILD_DIR ?= "./build-release/"
 ALIFLASH_DEBUG_BUILD_DIR ?= "./cmake-build-debug-aliflash/"
 ALIFLASH_RELEASE_BUILD_DIR ?= "./cmake-build-release-aliflash/"
+ALLIN_ALIFLASH_RELEASE_BUILD_DIR ?= "./cmake-build-release-allin-aliflash/"
 
 OTHER_DEFINE=""
 ifdef EXTRA_DEFINED
@@ -124,6 +125,12 @@ release:                 ## Build vsag with release options. ## -DENABLE_ALIFLAS
 ali_release:                 ## Build vsag with release options. ## -DENABLE_ALIFLASH=ON
 	cmake ${VSAG_CMAKE_ARGS} -B${ALIFLASH_RELEASE_BUILD_DIR} -DCMAKE_BUILD_TYPE=Release -DENABLE_ALIFLASH=ON
 	cmake --build ${ALIFLASH_RELEASE_BUILD_DIR} --parallel ${COMPILE_JOBS}
+
+.PHONY: allin_ali_release
+allin_ali_release:                 ## Build vsag with release options. ## -DENABLE_ALIFLASH=ON
+	cmake ${VSAG_CMAKE_ARGS} -B${ALLIN_ALIFLASH_RELEASE_BUILD_DIR} -DCMAKE_BUILD_TYPE=Release -DENABLE_ALIFLASH=ON -DENABLE_ALL_IN_ALIFLASH=ON
+	cmake --build ${ALLIN_ALIFLASH_RELEASE_BUILD_DIR} --parallel ${COMPILE_JOBS}
+
 
 .PHONY: dist-old-abi
 dist-old-abi:            ## Build vsag with distribution options.

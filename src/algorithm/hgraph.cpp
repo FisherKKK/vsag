@@ -31,6 +31,7 @@
 #include "utils/util_functions.h"
 
 namespace vsag {
+int THREAD_QUERY_ID_MAPPER[128];
 
 static uint64_t
 next_multiple_of_power_of_two(uint64_t x, uint64_t n) {
@@ -202,6 +203,14 @@ HGraph::KnnSearch(const DatasetPtr& query,
                   int64_t k,
                   const std::string& parameters,
                   const FilterPtr& filter) const {
+
+    // set thread-grained query_id
+#if ALL_IN_ALIFLASH == 1
+    auto query_id = client_->begin_single();
+    auto thread_id = omp_get_thread_num();
+    THREAD_QUERY_ID_MAPPER[thread_id] = query_id;
+#endif
+
     int64_t query_dim = query->GetDim();
     CHECK_ARGUMENT(query_dim == dim_,
                    fmt::format("query.dim({}) must be equal to index.dim({})", query_dim, dim_));
@@ -288,6 +297,11 @@ HGraph::KnnSearch(const DatasetPtr& query,
         }
         search_result.pop();
     }
+
+#if ALL_IN_ALIFLASH == 1
+    client_->end_single(query_id);
+#endif
+
     return std::move(dataset_results);
 }
 

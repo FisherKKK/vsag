@@ -26,8 +26,11 @@
 #include "io/basic_io.h"
 #include "io/memory_block_io.h"
 #include "quantization/quantizer.h"
+#include <omp.h>
 
 namespace vsag {
+extern int THREAD_QUERY_ID_MAPPER[128];
+
 /*
 * thread unsafe
 */
@@ -224,7 +227,7 @@ FlattenDataCell<QuantTmpl, IOTmpl>::FlattenDataCell(const QuantizerParamPtr& qua
         std::make_shared<MemoryBlockIO>(allocator_, Options::Instance().block_size_limit());
 
 #if ALL_IN_ALIFLASH == 1
-    this->client_ = AliFlashClient::GetInstance(quantizer_->dim_);
+    this->client_ = AliFlashClient::GetInstance(quantizer_->GetDim());
 #endif
 }
 
@@ -329,10 +332,15 @@ FlattenDataCell<QuantTmpl, IOTmpl>::query(float* result_dists,
                                           InnerIdType id_count) {
 
 #if ALL_IN_ALIFLASH == 1
-    std::vector<uint64_t> ids(idx, idx + id_count);
-    auto query_id = client_->begin_single();
-    client_->cal_multi((void*) computer->buf_, ids.data(), result_dists, id_count, query_id);
-    client_->end_single(query_id);
+    if (id_count >= 1) {
+        std::vector<uint64_t> ids(idx, idx + id_count);
+
+        auto thread_id = omp_get_thread_num();
+        int query_id = THREAD_QUERY_ID_MAPPER[thread_id];
+        client_->cal_multi((void*) computer->buf_, ids.data(), result_dists, id_count, query_id);
+
+        return;
+    }
 #endif
     for (uint32_t i = 0; i < this->prefetch_jump_code_size_ and i < id_count; i++) {
         if (force_in_memory_) {
