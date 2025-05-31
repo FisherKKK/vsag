@@ -42,12 +42,9 @@ public:
 
     ~AsyncIO() override {
 #ifdef DEBUG_IO
-        std::cout << "Prepare time: " << io_info.prepare
-                  << ", wait time: " << io_info.wait
-                  << ", copy time: " << io_info.copy
-                  << ", overall time: " << io_info.overall
-                  << ", call number: " << io_info.call_time
-                  << std::endl;
+        std::cout << "Prepare time: " << io_info.prepare << ", wait time: " << io_info.wait
+                  << ", copy time: " << io_info.copy << ", overall time: " << io_info.overall
+                  << ", call number: " << io_info.call_time << std::endl;
 #endif
     }
 
@@ -165,10 +162,12 @@ public:
 #ifdef DEBUG_IO
             {
                 std::unique_lock<std::mutex> lk(io_info.mutex);
-                auto prepare_time =  std::chrono::duration<double, std::milli>(point2 - point1).count();
-                auto wait_time =  std::chrono::duration<double, std::milli>(point3 - point2).count();
-                auto copy_time =  std::chrono::duration<double, std::milli>(point4 - point3).count();
-                auto overall_time =  std::chrono::duration<double, std::milli>(point4 - point1).count();
+                auto prepare_time =
+                    std::chrono::duration<double, std::milli>(point2 - point1).count();
+                auto wait_time = std::chrono::duration<double, std::milli>(point3 - point2).count();
+                auto copy_time = std::chrono::duration<double, std::milli>(point4 - point3).count();
+                auto overall_time =
+                    std::chrono::duration<double, std::milli>(point4 - point1).count();
                 io_info.prepare += prepare_time;
                 io_info.wait += wait_time;
                 io_info.copy += copy_time;
@@ -176,7 +175,6 @@ public:
                 io_info.call_time += 1;
             }
 #endif
-
 
             sizes += count;
             offsets += count;

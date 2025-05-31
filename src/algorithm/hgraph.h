@@ -30,6 +30,7 @@
 #include "default_thread_pool.h"
 #include "hgraph_parameter.h"
 #include "impl/basic_searcher.h"
+#include "impl/flash_searcher.h"
 #include "index/index_common_param.h"
 #include "index/iterator_filter.h"
 #include "index_feature_list.h"
@@ -57,8 +58,7 @@ public:
         std::cout << "Traversal time: " << latency_info.traversal_time
                   << ", reorder time: " << latency_info.reorder_time
                   << ", overall time: " << latency_info.overall_time
-                  << ", query number: " << latency_info.query_num
-                  << std::endl;
+                  << ", query number: " << latency_info.query_num << std::endl;
     }
 
     [[nodiscard]] std::string
@@ -213,9 +213,9 @@ private:
 #if USE_ALIFLASH == 1
     void
     reorder_aliflash(const float* query,
-                const FlattenInterfacePtr& flatten_interface,
-                MaxHeap& candidate_heap,
-                int64_t k) const;
+                     const FlattenInterfacePtr& flatten_interface,
+                     MaxHeap& candidate_heap,
+                     int64_t k) const;
 
 private:
     std::shared_ptr<AliFlashClient> client_;
@@ -230,7 +230,11 @@ private:
     mutable bool use_reorder_{false};
     bool ignore_reorder_{false};
 
+#if USE_ALIFLASH == 1
+    FlashSearcherPtr searcher_;
+#else
     BasicSearcherPtr searcher_;
+#endif
 
     int64_t dim_{0};
     MetricType metric_{MetricType::METRIC_TYPE_L2SQR};

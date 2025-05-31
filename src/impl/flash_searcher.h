@@ -27,9 +27,9 @@
 
 namespace vsag {
 
-class BasicSearcher {
+class FlashSearcher {
 public:
-    explicit BasicSearcher(const IndexCommonParam& common_param,
+    explicit FlashSearcher(const IndexCommonParam& common_param,
                            MutexArrayPtr mutex_array = nullptr);
 
     virtual MaxHeap
@@ -47,6 +47,16 @@ public:
            const InnerSearchParam& inner_search_param,
            IteratorFilterContext* iter_ctx) const;
 
+    void
+    SetLookAheadSize(InnerIdType look_ahead) {
+        this->look_ahead_ = look_ahead;
+    }
+
+    InnerIdType
+    GetLookAheadSize() const {
+        return this->look_ahead_;
+    }
+
 private:
     // rid means the neighbor's rank (e.g., the first neighbor's rid == 0)
     //  id means the neighbor's  id  (e.g., the first neighbor's  id == 12345)
@@ -54,6 +64,16 @@ private:
     visit(const GraphInterfacePtr& graph,
           const VisitedListPtr& vl,
           const std::pair<float, uint64_t>& current_node_pair,
+          const FilterPtr& filter,
+          float skip_ratio,
+          Vector<InnerIdType>& to_be_visited_rid,
+          Vector<InnerIdType>& to_be_visited_id,
+          Vector<InnerIdType>& neighbors) const;
+
+    uint32_t
+    visit(const GraphInterfacePtr& graph,
+          const VisitedListPtr& vl,
+          const Vector<InnerIdType>& current_node_pair,
           const FilterPtr& filter,
           float skip_ratio,
           Vector<InnerIdType>& to_be_visited_rid,
@@ -83,8 +103,10 @@ private:
     MutexArrayPtr mutex_array_{nullptr};
 
     uint32_t prefetch_jump_visit_size_{1};
+
+    InnerIdType look_ahead_{2};
 };
 
-using BasicSearcherPtr = std::shared_ptr<BasicSearcher>;
+using FlashSearcherPtr = std::shared_ptr<FlashSearcher>;
 
 }  // namespace vsag

@@ -39,8 +39,7 @@ public:
 
     ~BufferIO() {
 #ifdef DEBUG_IO
-        std::cout << "IO time: " << io_info.read_time
-                  << ", io number: " << io_info.call_time
+        std::cout << "IO time: " << io_info.read_time << ", io number: " << io_info.call_time
                   << std::endl;
 #endif
     };
@@ -100,7 +99,8 @@ public:
 #ifdef DEBUG_IO
         {
             std::unique_lock<std::mutex> lk(io_info.mutex);
-            auto io_time = std::chrono::duration<double, std::milli>(e - b).count();;
+            auto io_time = std::chrono::duration<double, std::milli>(e - b).count();
+            ;
             io_info.read_time += io_time;
             io_info.call_time += 1;
         }

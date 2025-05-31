@@ -60,7 +60,12 @@ HGraph::HGraph(const HGraphParameterPtr& hgraph_param, const vsag::IndexCommonPa
         this->high_precise_codes_ =
             FlattenInterface::MakeInstance(hgraph_param->precise_codes_param, common_param);
     }
+
+#if USE_ALIFLASH == 1
+    this->searcher_ = std::make_shared<FlashSearcher>(common_param, neighbors_mutex_);
+#else
     this->searcher_ = std::make_shared<BasicSearcher>(common_param, neighbors_mutex_);
+#endif
 
     this->bottom_graph_ =
         GraphInterface::MakeInstance(hgraph_param->bottom_graph_param, common_param);
@@ -203,7 +208,6 @@ HGraph::KnnSearch(const DatasetPtr& query,
                   int64_t k,
                   const std::string& parameters,
                   const FilterPtr& filter) const {
-
     // set thread-grained query_id
 #if ALL_IN_ALIFLASH == 1
     auto query_id = client_->begin_single();
@@ -252,21 +256,22 @@ HGraph::KnnSearch(const DatasetPtr& query,
     auto search_result = this->search_one_graph(
         query->GetFloat32Vectors(), this->bottom_graph_, this->basic_flatten_codes_, search_param);
 
-    auto middle =  Clock::now();
+    auto middle = Clock::now();
     if (use_reorder_) {
 #if USE_ALIFLASH == 1
-        this->reorder_aliflash(query->GetFloat32Vectors(), this->high_precise_codes_, search_result, k);
+        this->reorder_aliflash(
+            query->GetFloat32Vectors(), this->high_precise_codes_, search_result, k);
 #else
         this->reorder(query->GetFloat32Vectors(), this->high_precise_codes_, search_result, k);
 #endif
     }
-    auto end =  Clock::now();
+    auto end = Clock::now();
 
     {
         std::unique_lock<std::mutex> lk(latency_info.mutex);
-        auto graph_time =  std::chrono::duration<double, std::milli>(middle - begin).count();
-        auto reorder_time =  std::chrono::duration<double, std::milli>(end - middle).count();
-        auto overall_time =  std::chrono::duration<double, std::milli>(end - begin).count();
+        auto graph_time = std::chrono::duration<double, std::milli>(middle - begin).count();
+        auto reorder_time = std::chrono::duration<double, std::milli>(end - middle).count();
+        auto overall_time = std::chrono::duration<double, std::milli>(end - begin).count();
         latency_info.traversal_time += graph_time;
         latency_info.reorder_time += reorder_time;
         latency_info.overall_time += overall_time;
@@ -907,9 +912,9 @@ HGraph::init_features() {
 #if USE_ALIFLASH == 1
 void
 HGraph::reorder_aliflash(const float* query,
-                const FlattenInterfacePtr& flatten_interface,
-                MaxHeap& candidate_heap,
-                int64_t k) const {
+                         const FlattenInterfacePtr& flatten_interface,
+                         MaxHeap& candidate_heap,
+                         int64_t k) const {
     uint64_t size = candidate_heap.size();
     if (k <= 0) {
         k = static_cast<int64_t>(size);
@@ -924,7 +929,7 @@ HGraph::reorder_aliflash(const float* query,
     }
 
     auto query_id = client_->begin_single();
-    client_->cal_multi((void*) query, ids.data(), dists.data(), size, query_id);
+    client_->cal_multi((void*)query, ids.data(), dists.data(), size, query_id);
     client_->end_single(query_id);
 
     for (uint64_t i = 0; i < size; ++i) {

@@ -1,3 +1,4 @@
+
 // Copyright 2024-present the vsag project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,40 +15,22 @@
 
 #pragma once
 
-#include <string>
+#include "algorithm/hnswlib/algorithm_interface.h"
 
 namespace vsag {
+enum InnerSearchMode { KNN_SEARCH = 1, RANGE_SEARCH = 2 };
 
-/**
-  * @brief Get the version based on git revision
-  * 
-  * @return the version text
-  */
-extern std::string
-version();
+class InnerSearchParam {
+public:
+    int64_t topk{0};
+    float radius{0.0f};
+    InnerIdType ep{0};
+    uint64_t ef{10};
+    FilterPtr is_inner_id_allowed{nullptr};
+    float skip_ratio{0.8F};
+    InnerSearchMode search_mode{KNN_SEARCH};
+    int range_search_limit_size{-1};
+};
 
-/**
-  * @brief Init the vsag library
-  * 
-  * @return true always
-  */
-extern bool
-init();
-
+constexpr float THRESHOLD_ERROR = 2e-6;
 }  // namespace vsag
-
-#include "aliflash_client.h"
-#include "allocator.h"
-#include "binaryset.h"
-#include "bitset.h"
-#include "constants.h"
-#include "dataset.h"
-#include "engine.h"
-#include "errors.h"
-#include "expected.hpp"
-#include "factory.h"
-#include "index.h"
-#include "logger.h"
-#include "options.h"
-#include "readerset.h"
-#include "utils.h"

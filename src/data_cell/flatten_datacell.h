@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <omp.h>
 #include <vsag/vsag.h>
 
 #include <algorithm>
@@ -26,7 +27,6 @@
 #include "io/basic_io.h"
 #include "io/memory_block_io.h"
 #include "quantization/quantizer.h"
-#include <omp.h>
 
 namespace vsag {
 extern int THREAD_QUERY_ID_MAPPER[128];
@@ -330,14 +330,14 @@ FlattenDataCell<QuantTmpl, IOTmpl>::query(float* result_dists,
                                           const std::shared_ptr<Computer<QuantTmpl>>& computer,
                                           const InnerIdType* idx,
                                           InnerIdType id_count) {
-
 #if ALL_IN_ALIFLASH == 1
-    if (id_count >= 1) {
+    // Only dispatch >= 50 batch to aliflash
+    if (id_count >= 50) {
         std::vector<uint64_t> ids(idx, idx + id_count);
 
         auto thread_id = omp_get_thread_num();
         int query_id = THREAD_QUERY_ID_MAPPER[thread_id];
-        client_->cal_multi((void*) computer->buf_, ids.data(), result_dists, id_count, query_id);
+        client_->cal_multi((void*)computer->buf_, ids.data(), result_dists, id_count, query_id);
 
         return;
     }

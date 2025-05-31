@@ -14,7 +14,8 @@ extern "C" {
  * @return int  return == 0 on success
  *              return < 0  on fail
  */
-int pnmesdk_init(pnmesdk_conf* config);
+int
+pnmesdk_init(pnmesdk_conf* config);
 
 /**
  * @brief Uninitialize the client
@@ -23,7 +24,8 @@ int pnmesdk_init(pnmesdk_conf* config);
  * @return int  return == 0 on success
  *              return < 0  on fail
  */
-int pnmesdk_uninit(pnmesdk_conf* config);
+int
+pnmesdk_uninit(pnmesdk_conf* config);
 
 /**
  * @brief Open or create a database
@@ -34,7 +36,8 @@ int pnmesdk_uninit(pnmesdk_conf* config);
  * @return uint64_t  The ID of the created or opened database.
  *
  */
-uint64_t pnmesdk_db_open(database_context* context, uint64_t database_id, char* database_name);
+uint64_t
+pnmesdk_db_open(database_context* context, uint64_t database_id, char* database_name);
 
 /**
  * @brief Upload raw data to the device
@@ -45,7 +48,8 @@ uint64_t pnmesdk_db_open(database_context* context, uint64_t database_id, char* 
  * @return int  return == 0 on success
  *              return < 0  on fail
  */
-int pnmesdk_db_storage(database_context* context, char* data, uint64_t data_size);
+int
+pnmesdk_db_storage(database_context* context, char* data, uint64_t data_size);
 
 /**
  * @brief Upload raw data to the device
@@ -57,7 +61,11 @@ int pnmesdk_db_storage(database_context* context, char* data, uint64_t data_size
  * @return int  return == 0 on success
  *              return < 0  on fail
  */
-int pnmesdk_db_file_storage(database_context* context, char* file_path, uint64_t offset, uint64_t length);
+int
+pnmesdk_db_file_storage(database_context* context,
+                        char* file_path,
+                        uint64_t offset,
+                        uint64_t length);
 
 /**
  * @brief Get the list of databases
@@ -68,7 +76,8 @@ int pnmesdk_db_file_storage(database_context* context, char* file_path, uint64_t
  * @return int  return > 0 , the value indicates the number of databases obtained.
  *              return = 0 , No databases can be listed, and there are no databases saved on the device.
  */
-int pnmesdk_db_list(database_info* info, uint32_t n, uint32_t offset);
+int
+pnmesdk_db_list(database_info* info, uint32_t n, uint32_t offset);
 
 /**
  * @brief hnsw search
@@ -80,8 +89,12 @@ int pnmesdk_db_list(database_info* info, uint32_t n, uint32_t offset);
  * @return int  return == 0 on success
  *              return < 0  on fail
  */
-int pnmesdk_hnsw_search(database_context* context, search_config* config, void* target_vector, uint32_t target_vector_size,
-                        void* result_data);
+int
+pnmesdk_hnsw_search(database_context* context,
+                    search_config* config,
+                    void* target_vector,
+                    uint32_t target_vector_size,
+                    void* result_data);
 
 // 批量距离计算, 单独透传出来硬件向量计算接口
 /**
@@ -98,20 +111,40 @@ int pnmesdk_hnsw_search(database_context* context, search_config* config, void* 
  * @return int  return == 0 on success
  *              return < 0  on fail
  */
-int database_context_cal(database_context* context, calculate_config* cal_config);
+int
+database_context_cal(database_context* context, calculate_config* cal_config);
 
-int database_context_cal_metric(database_context* context, void* target_vector, uint32_t target_vector_size, uint64_t* ids_list,
-                                uint32_t ids_size, void* result_list, int hnsw_query_id, int level);
+int
+database_context_cal_metric(database_context* context,
+                            void* target_vector,
+                            uint32_t target_vector_size,
+                            uint64_t* ids_list,
+                            uint32_t ids_size,
+                            void* result_list,
+                            int hnsw_query_id,
+                            int level);
 
-int database_context_get_raw_data(database_context* context, uint32_t vector_size, uint64_t* ids_list, uint32_t ids_size,
-                                  void* raw_data);
+int
+database_context_get_raw_data(database_context* context,
+                              uint32_t vector_size,
+                              uint64_t* ids_list,
+                              uint32_t ids_size,
+                              void* raw_data);
 
-bool pnmesdk_upload_non_level0_data(database_context* context, uint32_t id_nums, uint64_t* ids_list, int level, uint32_t cache_size);
+bool
+pnmesdk_upload_non_level0_data(database_context* context,
+                               uint32_t id_nums,
+                               uint64_t* ids_list,
+                               int level,
+                               uint32_t cache_size);
 
-int pnme_get_search_query_id();
-void pnme_hnsw_search_end(int query_id);
+int
+pnme_get_search_query_id();
+void
+pnme_hnsw_search_end(int query_id);
 
-int pnmesdk_db_del(database_context* context);
+int
+pnmesdk_db_del(database_context* context);
 
 /**
  * @brief Build index
@@ -122,7 +155,8 @@ int pnmesdk_db_del(database_context* context);
  * @return int  return == 0 on success
  *              return < 0  on fail
  */
-int pnmesdk_build_index(build_index_config* config, char* intput_data_path, char* output_index_path);
+int
+pnmesdk_build_index(build_index_config* config, char* intput_data_path, char* output_index_path);
 
 /**
  * @brief Build index for data deduplication
@@ -132,7 +166,8 @@ int pnmesdk_build_index(build_index_config* config, char* intput_data_path, char
  * @return int  return == 0 on success
  *              return < 0  on fail
  */
-int hnsw_build_index_from_memory(build_index_config* config, float* base_data);
+int
+hnsw_build_index_from_memory(build_index_config* config, float* base_data);
 #ifdef __cplusplus
 }
 #endif

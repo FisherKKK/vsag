@@ -28,15 +28,21 @@ struct build_index_config {
     uint16_t thread_nums;
     float similar_threshold;
     build_index_config()
-        : vecsize(0), vecdim(0), data_type(FP32), M(48), ef_construction(500), thread_nums(10), similar_threshold(0.01) {};
+        : vecsize(0),
+          vecdim(0),
+          data_type(FP32),
+          M(48),
+          ef_construction(500),
+          thread_nums(10),
+          similar_threshold(0.01){};
 };
 
 struct calculate_config {
-    void *target_vector;
+    void* target_vector;
     uint32_t target_vector_size;
-    uint64_t *ids_list;
+    uint64_t* ids_list;
     uint32_t ids_size;
-    void *result_list;
+    void* result_list;
     int hnsw_query_id;
     int level;
     calculate_config()
@@ -46,7 +52,8 @@ struct calculate_config {
           ids_size(0),
           result_list(nullptr),
           hnsw_query_id(0),
-          level(-1) {}
+          level(-1) {
+    }
 };
 // 描述数据库
 struct database_context {
@@ -57,7 +64,8 @@ struct database_context {
     uint8_t data_type;     // fp16 or fp32
     int used_segment_ids[MAX_SEGMENT_NUM];
     int segment_nums;
-    database_context() : database_id(0), offset(0), length(0), vecdim(0), data_type(FP32), segment_nums(0) {
+    database_context()
+        : database_id(0), offset(0), length(0), vecdim(0), data_type(FP32), segment_nums(0) {
         for (int i = 0; i < MAX_SEGMENT_NUM; i++) {
             used_segment_ids[i] = -1;
         }

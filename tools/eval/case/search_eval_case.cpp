@@ -63,7 +63,6 @@ SearchEvalCase::SearchEvalCase(const std::string& dataset_path,
     aliflash_client->upload((float*)dataset_ptr_->GetTrain(), dataset_ptr_->GetNumberOfBase());
 #endif
 
-
     auto search_mode = config_.search_mode;
     if (search_mode == "knn") {
         this->search_type_ = SearchType::KNN;
