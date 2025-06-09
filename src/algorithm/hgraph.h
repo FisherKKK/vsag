@@ -230,7 +230,7 @@ private:
     mutable bool use_reorder_{false};
     bool ignore_reorder_{false};
 
-#if USE_ALIFLASH == 1
+#if USE_ALIFLASH_OPT == 1
     FlashSearcherPtr searcher_;
 #else
     BasicSearcherPtr searcher_;

@@ -15,6 +15,7 @@
 
 #include "basic_searcher.h"
 
+#include <iostream>
 #include <limits>
 
 #include "utils/linear_congruential_generator.h"
@@ -23,6 +24,7 @@ namespace vsag {
 
 BasicSearcher::BasicSearcher(const IndexCommonParam& common_param, MutexArrayPtr mutex_array)
     : allocator_(common_param.allocator_.get()), mutex_array_(std::move(mutex_array)) {
+    std::cout << "Using basic searcher" << std::endl;
 }
 
 uint32_t

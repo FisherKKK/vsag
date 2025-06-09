@@ -23,7 +23,9 @@
 #include "pnmesdk_client_c.h"
 
 // #define MULTICASE
-// #define ALIFLASH_DEBUG_CAL
+
+// used for summary the aliflash call statistics
+#define ALIFLASH_DEBUG_CAL
 
 struct AliFlashClient {
     static std::shared_ptr<AliFlashClient>

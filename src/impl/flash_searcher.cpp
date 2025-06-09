@@ -15,6 +15,7 @@
 
 #include "flash_searcher.h"
 
+#include <iostream>
 #include <limits>
 
 #include "utils/linear_congruential_generator.h"
@@ -23,6 +24,7 @@ namespace vsag {
 
 FlashSearcher::FlashSearcher(const IndexCommonParam& common_param, MutexArrayPtr mutex_array)
     : allocator_(common_param.allocator_.get()), mutex_array_(std::move(mutex_array)) {
+    std::cout << "Using flash searcher" << std::endl;
 }
 
 uint32_t
@@ -333,7 +335,8 @@ FlashSearcher::search_impl(const GraphInterfacePtr& graph,
     Vector<float> line_dists(graph->MaximumDegree() * look_ahead_, allocator_);
 
     // look ahead for candidate heap
-    Vector<InnerIdType> look_ahead_id(look_ahead_, allocator_);
+    Vector<InnerIdType> look_ahead_id(allocator_);
+    look_ahead_id.reserve(look_ahead_);
 
     flatten->Query(&dist, computer, &ep, 1);
     if (not is_id_allowed || is_id_allowed->CheckValid(ep)) {
@@ -362,9 +365,9 @@ FlashSearcher::search_impl(const GraphInterfacePtr& graph,
         candidate_set.pop();
 
         // look ahead
-        look_ahead_id[0] = current_node_pair.second;
+        look_ahead_id.emplace_back(current_node_pair.second);
         for (InnerIdType lk = 1; !candidate_set.empty() && lk < look_ahead_; lk++) {
-            look_ahead_id[lk] = candidate_set.top().second;
+            look_ahead_id.emplace_back(candidate_set.top().second);
             candidate_set.pop();
         }
 
@@ -380,6 +383,9 @@ FlashSearcher::search_impl(const GraphInterfacePtr& graph,
                                  to_be_visited_rid,
                                  to_be_visited_id,
                                  neighbors);
+
+        // reset the look ahead id
+        look_ahead_id.clear();
 
         dist_cmp += count_no_visited;
 

@@ -332,7 +332,13 @@ FlattenDataCell<QuantTmpl, IOTmpl>::query(float* result_dists,
                                           InnerIdType id_count) {
 #if ALL_IN_ALIFLASH == 1
     // Only dispatch >= 50 batch to aliflash
-    if (id_count >= 50) {
+#if USE_ALIFLASH_OPT == 1
+    constexpr int push_down_threshold = 50;
+#else
+    constexpr int push_down_threshold = 1;
+#endif
+
+    if (id_count >= push_down_threshold) {
         std::vector<uint64_t> ids(idx, idx + id_count);
 
         auto thread_id = omp_get_thread_num();

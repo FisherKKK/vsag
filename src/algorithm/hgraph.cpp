@@ -61,7 +61,7 @@ HGraph::HGraph(const HGraphParameterPtr& hgraph_param, const vsag::IndexCommonPa
             FlattenInterface::MakeInstance(hgraph_param->precise_codes_param, common_param);
     }
 
-#if USE_ALIFLASH == 1
+#if USE_ALIFLASH_OPT == 1
     this->searcher_ = std::make_shared<FlashSearcher>(common_param, neighbors_mutex_);
 #else
     this->searcher_ = std::make_shared<BasicSearcher>(common_param, neighbors_mutex_);
