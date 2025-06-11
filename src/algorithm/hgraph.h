@@ -217,6 +217,13 @@ private:
                      MaxHeap& candidate_heap,
                      int64_t k) const;
 
+    // reorder the graph, now only based on the bottom graph
+
+    // degree, inner id
+    using DegreeNode = std::pair<InnerIdType, InnerIdType>;
+    void
+    rcm_order_graph();
+
 private:
     std::shared_ptr<AliFlashClient> client_;
 #endif

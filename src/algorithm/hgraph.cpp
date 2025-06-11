@@ -972,6 +972,112 @@ HGraph::reorder(const float* query,
     }
 }
 
+void
+HGraph::rcm_order_graph() {
+    Vector<DegreeNode> sorted_nodes(allocator_);
+    sorted_nodes.reserve(total_count_);
+
+    Vector<InnerIdType> permutation(allocator_);
+    permutation.reserve(total_count_);
+
+    auto get_degree_node = [&]() {
+        for (InnerIdType i = 0; i < total_count_; i++) {
+            auto degree = bottom_graph_->GetNeighborSize(i);
+            sorted_nodes.emplace_back(degree, i);
+        }
+    };
+
+    get_degree_node();
+    std::sort(sorted_nodes.begin(), sorted_nodes.end());
+
+    auto visited_list = this->pool_->TakeOne();
+
+    auto bfs = [&](InnerIdType expand_node, Deque<InnerIdType>& q) {
+        q.emplace_back(expand_node);
+
+        while (!q.empty()) {
+            auto cur_node = q.front();
+            q.pop_front();
+
+            if (!visited_list->Get(cur_node)) {
+                permutation.emplace_back(cur_node);
+                visited_list->Set(cur_node);
+
+                Vector<InnerIdType> cur_node_nbrs(allocator_);
+                bottom_graph_->GetNeighbors(cur_node, cur_node_nbrs);
+
+                Vector<DegreeNode> cur_node_nbrs_dg(allocator_);
+                cur_node_nbrs_dg.reserve(cur_node_nbrs.size());
+
+                for (auto nn : cur_node_nbrs) {
+                    auto degree = bottom_graph_->GetNeighborSize(nn);
+                    cur_node_nbrs_dg.emplace_back(degree, nn);
+                }
+
+                std::sort(cur_node_nbrs_dg.begin(), cur_node_nbrs_dg.end());
+
+                for (const auto& [_, nn] : cur_node_nbrs_dg) {
+                    q.emplace_back(nn);
+                }
+            }
+        }
+    };
+
+    auto sorted_node_size = sorted_nodes.size();
+    for (InnerIdType i = 0; i < sorted_node_size; i++) {
+        auto cur_node = sorted_nodes[i].second;
+        if (visited_list->Get(cur_node))
+            continue;
+
+        Deque<InnerIdType> q(allocator_);
+        bfs(cur_node, q);
+    }
+
+    this->pool_->ReturnOne(visited_list);
+
+    std::reverse(permutation.begin(), permutation.end());
+
+    Vector<InnerIdType> prev2now(total_count_, 0);
+    for (InnerIdType i = 0; i < total_count_; i++) {
+        prev2now[permutation[i]] = i;
+    }
+
+    // relabel the bottom graph connection
+    for (InnerIdType i = 0; i < total_count_; i++) {
+        Vector<InnerIdType> cur_nbrs;
+        bottom_graph_->GetNeighbors(i, cur_nbrs);
+        for (auto& cur_nbr : cur_nbrs) {
+            cur_nbr = prev2now[cur_nbr];
+        }
+        bottom_graph_->InsertNeighborsById(i, cur_nbrs);
+    }
+
+    // re-layout the physical storage
+    auto code_size = basic_flatten_codes_->code_size_;
+    Vector<char> temp_vecs(code_size);
+    Vector<InnerIdType> temp_linklist(bottom_graph_->MaximumDegree());
+    LabelType temp_label;
+
+    auto swap_node = [&](InnerIdType a, InnerIdType b) {
+        basic_flatten_codes_->memcpy(
+            temp_vecs.data(), basic_flatten_codes_->GetCodesById(b), code_size);
+    };
+
+    visited_list = this->pool_->TakeOne();
+    for (InnerIdType i = 0; i < total_count_; i++) {
+        if (visited_list->Get(i))
+            continue;
+
+        auto src = i;
+        // permutation is i-th position's id
+        auto dest = permutation[src];
+
+        // swap_node();
+    }
+
+    this->pool_->ReturnOne(visited_list);
+}
+
 static const ConstParamMap EXTERNAL_MAPPING = {
     {
         HGRAPH_USE_REORDER,
