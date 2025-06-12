@@ -38,16 +38,16 @@ struct build_index_config {
 };
 
 struct calculate_config {
-    void* target_vector;
-    uint32_t target_vector_size;
+    void* query_vector;
+    uint32_t query_vector_size;
     uint64_t* ids_list;
     uint32_t ids_size;
     void* result_list;
     int hnsw_query_id;
     int level;
     calculate_config()
-        : target_vector(nullptr),
-          target_vector_size(0),
+        : query_vector(nullptr),
+          query_vector_size(0),
           ids_list(nullptr),
           ids_size(0),
           result_list(nullptr),
@@ -81,6 +81,30 @@ struct database_info {
 
 struct pnmesdk_conf {
     uint32_t timeout;  // 超时时间
+};
+
+struct hnsw_search_opt;
+
+typedef int (*hnsw_search_fn)(hnsw_search_opt* opt);  // 0:calc 1:hnsw search finished
+
+typedef int (*result_cb)(void* user_data);
+
+struct calc_opt {
+    uint64_t ids_list[256];
+    uint32_t ids_size;
+    float result_list[256];
+    int level;
+    calc_opt() : ids_size(0), level(-1) {
+    }
+};
+
+struct hnsw_search_opt {
+    database_context* context;
+    void* query_vector;
+    uint32_t query_vector_size;
+    hnsw_search_fn search_fn;
+    calc_opt copt;
+    void* user_data;
 };
 
 enum {

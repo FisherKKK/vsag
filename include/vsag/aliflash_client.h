@@ -127,8 +127,8 @@ struct AliFlashClient {
     void
     cal_single(void* query, uint64_t single_id, float* dist, int hnsw_query_id) {
         calculate_config calc_config;
-        calc_config.target_vector = query;
-        calc_config.target_vector_size = vecdim_ * FP32;
+        calc_config.query_vector = query;
+        calc_config.query_vector_size = vecdim_ * FP32;
         calc_config.ids_list = &single_id;
         calc_config.ids_size = 1;
         calc_config.result_list = dist;
@@ -151,8 +151,8 @@ struct AliFlashClient {
     void
     cal_multi(void* query, uint64_t* ids, float* dist, uint32_t size, int hnsw_query_id) {
         calculate_config calc_config;
-        calc_config.target_vector = query;
-        calc_config.target_vector_size = vecdim_ * FP32;
+        calc_config.query_vector = query;
+        calc_config.query_vector_size = vecdim_ * FP32;
         calc_config.ids_list = ids;
         calc_config.ids_size = size;
         calc_config.result_list = dist;
