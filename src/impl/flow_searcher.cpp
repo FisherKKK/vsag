@@ -19,8 +19,28 @@
 #include <limits>
 
 #include "utils/linear_congruential_generator.h"
+#include "vsag/pnmesdk_client_c.h"
 
 namespace vsag {
+
+namespace {
+
+struct SearchContext {
+    /** 0-init (init and pass ep calculation)
+     *  1-entry (load candidate_set, result set)
+     *  2-search (best-first search)
+     */
+    uint8_t state{0};
+    InnerIdType ep{0};
+    uint64_t code_size{0};
+    void* query{nullptr};
+};
+
+int
+flow_searcher(hnsw_search_opt* search_opt) {
+}
+
+}  // namespace
 
 FlowSearcher::FlowSearcher(const IndexCommonParam& common_param, MutexArrayPtr mutex_array)
     : allocator_(common_param.allocator_.get()), mutex_array_(std::move(mutex_array)) {
@@ -260,6 +280,16 @@ FlowSearcher::search_impl(const GraphInterfacePtr& graph,
     Vector<InnerIdType> neighbors(graph->MaximumDegree(), allocator_);
     Vector<float> line_dists(graph->MaximumDegree(), allocator_);
 
+    /**
+    * const GraphInterfacePtr& graph,
+                          const FlattenInterfacePtr& flatten,
+                          const VisitedListPtr& vl,
+                          const float* query,
+                          const InnerSearchParam& inner_search_param
+     *
+     *
+     */
+
     flatten->Query(&dist, computer, &ep, 1);
     if (not is_id_allowed || is_id_allowed->CheckValid(ep)) {
         top_candidates.emplace(dist, ep);
@@ -272,6 +302,109 @@ FlowSearcher::search_impl(const GraphInterfacePtr& graph,
     }
     candidate_set.emplace(-dist, ep);
     vl->Set(ep);
+
+    auto db_context = new database_context();
+    auto search_opt = new hnsw_search_opt();
+    auto search_context = new SearchContext();
+
+    search_opt->context = db_context;
+    search_opt->user_data = search_context;
+    search_opt->search_fn = flow_searcher;
+
+    database_context_hnsw_search(db_context, search_opt);
+
+    // make sure entry point can be used
+    auto search_fn = [&](hnsw_search_opt* search_opt) {
+        auto search_context = static_cast<SearchContext*>(search_opt->user_data);
+
+        // first enter, directly calculate the entry point distance
+        if (search_context->state == 0) {
+            search_context->state = 1;
+            search_opt->copt.ids_size = 1;
+            search_opt->copt.ids_list[0] = search_context->ep;
+            search_opt->query_vector = search_context->query;
+            search_opt->query_vector_size = search_context->code_size;
+            return 0;
+        }
+
+        // second enter, get the distance of entry point
+        if (search_context->state == 1) {
+            if (not is_id_allowed || is_id_allowed->CheckValid(ep)) {
+                top_candidates.emplace(dist, ep);
+                lower_bound = top_candidates.top().first;
+            }
+            candidate_set.emplace(-dist, ep);
+            vl->Set(ep);
+
+            search_context->state = 2;
+        } else if (search_context->state == 2) {
+            // 1. deal with last calculation's result, emplace to the candidate
+            for (uint32_t i = 0; i < search_opt->copt.ids_size; i++) {
+                auto dist = search_opt->copt.result_list[i];
+                if (top_candidates.size() < ef || lower_bound > dist ||
+                    (mode == RANGE_SEARCH && dist <= inner_search_param.radius)) {
+                    candidate_set.emplace(-dist, to_be_visited_id[i]);
+                    //                flatten->Prefetch(candidate_set.top().second);
+                    if (not is_id_allowed || is_id_allowed->CheckValid(to_be_visited_id[i])) {
+                        top_candidates.emplace(dist, to_be_visited_id[i]);
+                    }
+
+                    if constexpr (mode == KNN_SEARCH) {
+                        if (top_candidates.size() > ef) {
+                            top_candidates.pop();
+                        }
+                    }
+
+                    if (not top_candidates.empty()) {
+                        lower_bound = top_candidates.top().first;
+                    }
+                }
+            }
+        }
+
+        // 2. prepare for next calculation
+        if (not candidate_set.empty()) {
+            auto current_node_pair = candidate_set.top();
+            if ((-current_node_pair.first) > lower_bound && top_candidates.size() == ef) {
+                // complete search
+                return 1;
+            }
+            candidate_set.pop();
+
+            LinearCongruentialGenerator generator;
+
+            if (this->mutex_array_ != nullptr) {
+                SharedLock lock(this->mutex_array_, current_node_pair.second);
+                graph->GetNeighbors(current_node_pair.second, neighbors);
+            } else {
+                graph->GetNeighbors(current_node_pair.second, neighbors);
+            }
+
+            float skip_threshold =
+                (inner_search_param.is_inner_id_allowed != nullptr
+                     ? (inner_search_param.is_inner_id_allowed->ValidRatio() == 1.0F
+                            ? 0
+                            : (1 - ((1 - inner_search_param.is_inner_id_allowed->ValidRatio()) *
+                                    inner_search_param.skip_ratio)))
+                     : 0.0F);
+
+            for (uint32_t i = 0; i < neighbors.size(); i++) {
+                if (i + prefetch_jump_visit_size_ < neighbors.size()) {
+                    vl->Prefetch(neighbors[i + prefetch_jump_visit_size_]);
+                }
+                if (not vl->Get(neighbors[i])) {
+                    if (not inner_search_param.is_inner_id_allowed || count_no_visited == 0 ||
+                        generator.NextFloat() > skip_threshold ||
+                        inner_search_param.is_inner_id_allowed->CheckValid(neighbors[i])) {
+                        to_be_visited_rid[count_no_visited] = i;
+                        to_be_visited_id[count_no_visited] = neighbors[i];
+                        count_no_visited++;
+                    }
+                    vl->Set(neighbors[i]);
+                }
+            }
+        }
+    };
 
     while (not candidate_set.empty()) {
         hops++;
