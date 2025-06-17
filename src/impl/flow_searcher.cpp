@@ -38,7 +38,7 @@ struct SearchContext {
                            uint64_t ef,
                            uint64_t code_size,
                            void* query,
-                           FilterPtr is_id_allowed,
+                           const FilterPtr& is_id_allowed,
                            MaxHeap& top_candidates,
                            MaxHeap& candidate_set,
                            const VisitedListPtr& vl,
@@ -69,7 +69,7 @@ struct SearchContext {
     uint64_t ef_{10};
     uint64_t code_size_{0};
     void* query_{nullptr};
-    FilterPtr is_id_allowed_{nullptr};
+    const FilterPtr& is_id_allowed_;
 
     Vector<InnerIdType> neighbors_;
     MaxHeap& top_candidates_;
@@ -113,6 +113,7 @@ flow_search_fn(hnsw_search_opt* search_opt) {
         search_context->state_ = 1;
         ids_size = 1;
         ids_line[0] = ep;
+        // std::cout << "Entry point..." << std::endl;
         return 0;
     }
 
@@ -126,6 +127,7 @@ flow_search_fn(hnsw_search_opt* search_opt) {
         candidate_set.emplace(-dist, ep);
         vl->Set(ep);
         search_context->state_ = 2;
+        // std::cout << "Entry point into pq..." << std::endl;
     } else if (search_context->state_ == 2) {
         // 1. deal with last calculation's result, emplace to the candidate
         for (uint32_t i = 0; i < ids_size; i++) {
@@ -150,10 +152,14 @@ flow_search_fn(hnsw_search_opt* search_opt) {
                 }
             }
         }
+        // std::cout << "Process last result..." << std::endl;
     }
 
-    // 2. prepare for next calculation
-    if (not candidate_set.empty()) {
+    // reset the ids size
+    ids_size = 0;
+
+    // 2. prepare for next calculation must larger than 0
+    while (not candidate_set.empty() && ids_size < 1) {
         auto current_node_pair = candidate_set.top();
         if constexpr (mode == KNN_SEARCH) {
             if ((-current_node_pair.first) > lower_bound && top_candidates.size() == ef) {
@@ -205,8 +211,10 @@ flow_search_fn(hnsw_search_opt* search_opt) {
             }
         }
         ids_size = count_no_visited;
-        return 0;
+        // std::cout << "Input nodes need to be calculated: " << ids_size << " ..." << std::endl;
     }
+
+    if (ids_size > 0) return 0;
 
     // if empty, search complete
     return 1;

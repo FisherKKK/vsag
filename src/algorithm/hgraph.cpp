@@ -16,6 +16,7 @@
 #include "hgraph.h"
 
 #include <fmt/format-inl.h>
+#include "impl/flow_searcher.h"
 
 #include <memory>
 #include <stdexcept>
@@ -64,7 +65,13 @@ HGraph::HGraph(const HGraphParameterPtr& hgraph_param, const vsag::IndexCommonPa
 #if USE_ALIFLASH_OPT == 1
     this->searcher_ = std::make_shared<FlashSearcher>(common_param, neighbors_mutex_);
 #else
+
+#if USE_CALLBACK_ALIFLASH == 1
+    this->searcher_ = std::make_shared<FlowSearcher>(common_param, neighbors_mutex_);
+#else
     this->searcher_ = std::make_shared<BasicSearcher>(common_param, neighbors_mutex_);
+#endif
+
 #endif
 
     this->bottom_graph_ =

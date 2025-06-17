@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "impl/flow_searcher.h"
 #include <vsag/vsag.h>
 
 #include <nlohmann/json.hpp>
@@ -233,7 +234,13 @@ private:
 #if USE_ALIFLASH_OPT == 1
     FlashSearcherPtr searcher_;
 #else
+
+#if USE_CALLBACK_ALIFLASH == 1
+    FlowSearcherPtr searcher_;
+#else
     BasicSearcherPtr searcher_;
+#endif
+
 #endif
 
     int64_t dim_{0};

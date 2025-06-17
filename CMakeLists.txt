@@ -51,6 +51,7 @@ option (DISABLE_AVX512_FORCE "Force disable avx512 instructions" OFF)
 option (ENABLE_ALIFLASH "Whether enable aliflash" OFF)
 option (ENABLE_ALL_IN_ALIFLASH "Whether push all calculation to aliflash" OFF)
 option (ENABLE_ALIFLASH_OPT "Whether optimize aliflash" OFF)
+option (ENABLE_ALIFLASH_CALLBACK "Whether use callback api" OFF)
 
 if (ENABLE_ALIFLASH)
     add_definitions (-DUSE_ALIFLASH=1)
@@ -64,6 +65,11 @@ if (ENABLE_ALIFLASH)
 
     if (ENABLE_ALIFLASH_OPT)
         add_definitions (-DUSE_ALIFLASH_OPT=1)
+        message (STATUS "Optimizing calculation of aliflash")
+    endif ()
+
+    if (ENABLE_ALIFLASH_CALLBACK)
+        add_definitions (-DUSE_CALLBACK_ALIFLASH=1)
         message (STATUS "Optimizing calculation of aliflash")
     endif ()
 
