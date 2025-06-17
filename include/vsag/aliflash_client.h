@@ -185,6 +185,17 @@ struct AliFlashClient {
         pnme_hnsw_search_end(query_id);
     }
 
+    void
+    context_search(hnsw_search_fn fn, void* search_context) {
+        auto opt = std::make_unique<hnsw_search_opt>();
+        opt->user_data = search_context;
+        opt->context = context_;
+        opt->copt.ids_size = 0;
+        opt->search_fn = fn;
+        database_context_hnsw_search(context_, opt.get());
+        return;
+    }
+
 #ifdef ALIFLASH_DEBUG_CAL
     struct {
         std::mutex mutex;

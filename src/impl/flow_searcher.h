@@ -24,6 +24,7 @@
 #include "index/iterator_filter.h"
 #include "lock_strategy.h"
 #include "utils/visited_list.h"
+#include "vsag/aliflash_client.h"
 
 namespace vsag {
 
@@ -83,6 +84,8 @@ private:
     MutexArrayPtr mutex_array_{nullptr};
 
     uint32_t prefetch_jump_visit_size_{1};
+
+    std::shared_ptr<AliFlashClient> client_;
 };
 
 using FlowSearcherPtr = std::shared_ptr<FlowSearcher>;
