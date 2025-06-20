@@ -25,7 +25,7 @@
 // #define MULTICASE
 
 // used for summary the aliflash call statistics
-#define ALIFLASH_DEBUG_CAL
+// #define ALIFLASH_DEBUG_CAL
 
 struct AliFlashClient {
     static std::shared_ptr<AliFlashClient>
