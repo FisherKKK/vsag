@@ -228,6 +228,9 @@ json_to_table(vsag::eval::JsonType results) {
     */
 }
 
+extern float CALL_NUMBER[256];
+extern float PUSH_DOWN_NUMBER[256];
+
 int
 main(int argc, char** argv) {
     vsag::Options::Instance().logger()->SetLevel(vsag::Logger::kOFF);
@@ -290,4 +293,13 @@ main(int argc, char** argv) {
             std::cout << eval_case->Run() << std::endl;
         }
     }
+
+#ifdef GET_ALIFLASH_INFO
+    {
+        auto call_number = std::accumulate(CALL_NUMBER, CALL_NUMBER + 256, 0.f);
+        auto push_down_number = std::accumulate(PUSH_DOWN_NUMBER, PUSH_DOWN_NUMBER + 256, 0.f);
+        std::cout << "AliFlash average push down number: "
+                  << push_down_number / (call_number + 0.00001f) << std::endl;
+    }
+#endif
 }

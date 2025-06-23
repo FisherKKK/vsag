@@ -15,7 +15,6 @@
 
 #pragma once
 
-#include "impl/flow_searcher.h"
 #include <vsag/vsag.h>
 
 #include <nlohmann/json.hpp>
@@ -32,6 +31,7 @@
 #include "hgraph_parameter.h"
 #include "impl/basic_searcher.h"
 #include "impl/flash_searcher.h"
+#include "impl/flow_searcher.h"
 #include "index/index_common_param.h"
 #include "index/iterator_filter.h"
 #include "index_feature_list.h"
@@ -41,6 +41,9 @@
 #include "utils/visited_list.h"
 #include "vsag/index.h"
 #include "vsag/index_features.h"
+
+// whether cache upper level node in memory
+#define CACHE_UPPER_GRAPH
 
 namespace vsag {
 class HGraph : public InnerIndexInterface {
@@ -188,6 +191,15 @@ private:
                      const FlattenInterfacePtr& flatten,
                      InnerSearchParam& inner_search_param) const;
 
+#ifdef CACHE_UPPER_GRAPH
+    template <InnerSearchMode mode = InnerSearchMode::KNN_SEARCH>
+    MaxHeap
+    search_cached_graph(const float* query,
+                        const GraphInterfacePtr& graph,
+                        const FlattenInterfacePtr& flatten,
+                        InnerSearchParam& inner_search_param) const;
+#endif
+
     template <InnerSearchMode mode = InnerSearchMode::KNN_SEARCH>
     MaxHeap
     search_one_graph(const float* query,
@@ -241,6 +253,10 @@ private:
     BasicSearcherPtr searcher_;
 #endif
 
+#endif
+
+#ifdef CACHE_UPPER_GRAPH
+    BasicSearcherPtr cached_searcher_;
 #endif
 
     int64_t dim_{0};

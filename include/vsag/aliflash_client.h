@@ -22,6 +22,10 @@
 #include "pnm_engine_def.h"
 #include "pnmesdk_client_c.h"
 
+// collect cal info of callback api
+#define GET_ALIFLASH_INFO
+
+// whether support multi-case eval
 // #define MULTICASE
 
 // used for summary the aliflash call statistics

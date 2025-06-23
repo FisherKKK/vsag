@@ -15,12 +15,15 @@
 
 #include "flow_searcher.h"
 
+#include <omp.h>
+
 #include <iostream>
 #include <limits>
 
 #include "utils/linear_congruential_generator.h"
-#include "vsag/pnmesdk_client_c.h"
 
+float CALL_NUMBER[256];
+float PUSH_DOWN_NUMBER[256];
 namespace vsag {
 
 namespace {
@@ -57,7 +60,8 @@ struct SearchContext {
           vl_(vl),
           mutex_array_(mutex_array),
           graph_(graph),
-          neighbors_(graph->MaximumDegree(), allocator) {
+          neighbors_(graph->MaximumDegree() * LOOK_AHEAD, allocator),
+          allocator_(allocator) {
     }
 
     uint8_t state_{0};
@@ -77,6 +81,8 @@ struct SearchContext {
     const VisitedListPtr& vl_;
     const MutexArrayPtr& mutex_array_;
     const GraphInterfacePtr& graph_;
+    Allocator* allocator_;
+    static constexpr int LOOK_AHEAD = 2;
 };
 
 template <InnerSearchMode mode>
@@ -105,8 +111,12 @@ flow_search_fn(hnsw_search_opt* search_opt) {
     auto ids_line = search_opt->copt.ids_list;
     auto& ids_size = search_opt->copt.ids_size;
 
+    Allocator* allocator = search_context->allocator_;
+
     search_opt->query_vector = query;
     search_opt->query_vector_size = code_size;
+
+    auto thread_num = omp_get_thread_num();
 
     // first enter, directly calculate the entry point distance
     if (search_context->state_ == 0) {
@@ -114,6 +124,12 @@ flow_search_fn(hnsw_search_opt* search_opt) {
         ids_size = 1;
         ids_line[0] = ep;
         // std::cout << "Entry point..." << std::endl;
+#ifdef GET_ALIFLASH_INFO
+        {
+            CALL_NUMBER[thread_num] += 1;
+            PUSH_DOWN_NUMBER[thread_num] += 1;
+        }
+#endif
         return 0;
     }
 
@@ -127,7 +143,7 @@ flow_search_fn(hnsw_search_opt* search_opt) {
         candidate_set.emplace(-dist, ep);
         vl->Set(ep);
         search_context->state_ = 2;
-        // std::cout << "Entry point into pq..." << std::endl;
+        std::cout << "Entry point into pq..." << std::endl;
     } else if (search_context->state_ == 2) {
         // 1. deal with last calculation's result, emplace to the candidate
         for (uint32_t i = 0; i < ids_size; i++) {
@@ -152,17 +168,22 @@ flow_search_fn(hnsw_search_opt* search_opt) {
                 }
             }
         }
-        // std::cout << "Process last result..." << std::endl;
+        std::cout << "Process last result..." << std::endl;
     }
 
     // reset the ids size
     ids_size = 0;
 
     // 2. prepare for next calculation must larger than 0
+    //! we should record the average cal times
+    Vector<InnerIdType> look_ahead_ids(allocator);
+    look_ahead_ids.reserve(SearchContext::LOOK_AHEAD);
+
     while (not candidate_set.empty() && ids_size < 1) {
         auto current_node_pair = candidate_set.top();
+        look_ahead_ids.emplace_back(current_node_pair.second);
         if constexpr (mode == KNN_SEARCH) {
-            if ((-current_node_pair.first) > lower_bound && top_candidates.size() == ef) {
+            if ((-current_node_pair.first) > lower_bound && top_candidates.size() >= ef) {
                 // complete search
                 return 1;
             }
@@ -174,14 +195,31 @@ flow_search_fn(hnsw_search_opt* search_opt) {
             graph->Prefetch(candidate_set.top().second, 0);
         }
 
+        // look ahead the candidate
+        for (int lk = 1; lk < SearchContext::LOOK_AHEAD && not candidate_set.empty(); lk++) {
+            look_ahead_ids.emplace_back(candidate_set.top().second);
+            candidate_set.pop();
+        }
+
         LinearCongruentialGenerator generator;
         uint32_t count_no_visited = 0;
 
-        if (mutex_array != nullptr) {
-            SharedLock lock(mutex_array, current_node_pair.second);
-            graph->GetNeighbors(current_node_pair.second, neighbors);
-        } else {
-            graph->GetNeighbors(current_node_pair.second, neighbors);
+        Vector<InnerIdType> tmp_nbr(allocator);
+        InnerIdType cur_nbr_size = 0;
+
+        // clear the nbrs
+        neighbors.clear();
+
+        for (auto look_ahead_id : look_ahead_ids) {
+            if (mutex_array != nullptr) {
+                SharedLock lock(mutex_array, look_ahead_id);
+                graph->GetNeighbors(look_ahead_id, tmp_nbr);
+            } else {
+                graph->GetNeighbors(look_ahead_id, tmp_nbr);
+            }
+            auto nbr_sz = tmp_nbr.size();
+            memcpy(neighbors.data() + cur_nbr_size, tmp_nbr.data(), sizeof(InnerIdType) * nbr_sz);
+            cur_nbr_size += nbr_sz;
         }
 
         float skip_threshold = (is_id_allowed != nullptr
@@ -190,12 +228,12 @@ flow_search_fn(hnsw_search_opt* search_opt) {
                                            : (1 - ((1 - is_id_allowed->ValidRatio()) * skip_ratio)))
                                     : 0.0F);
 
-        for (uint32_t i = 0; i < prefetch_jump_visit_size and neighbors.size() > i; i++) {
+        for (uint32_t i = 0; i < prefetch_jump_visit_size and cur_nbr_size > i; i++) {
             vl->Prefetch(neighbors[i]);
         }
 
-        for (uint32_t i = 0; i < neighbors.size(); i++) {
-            if (i + prefetch_jump_visit_size < neighbors.size()) {
+        for (uint32_t i = 0; i < cur_nbr_size; i++) {
+            if (i + prefetch_jump_visit_size < cur_nbr_size) {
                 vl->Prefetch(neighbors[i + prefetch_jump_visit_size]);
             }
             if (not vl->Get(neighbors[i])) {
@@ -211,10 +249,19 @@ flow_search_fn(hnsw_search_opt* search_opt) {
             }
         }
         ids_size = count_no_visited;
-        // std::cout << "Input nodes need to be calculated: " << ids_size << " ..." << std::endl;
+
+        std::cout << "Input nodes need to be calculated: " << ids_size << " ..." << std::endl;
     }
 
-    if (ids_size > 0) return 0;
+    if (ids_size > 0) {
+#ifdef GET_ALIFLASH_INFO
+        {
+            CALL_NUMBER[thread_num] += 1;
+            PUSH_DOWN_NUMBER[thread_num] += ids_size;
+        }
+#endif
+        return 0;
+    }
 
     // if empty, search complete
     return 1;

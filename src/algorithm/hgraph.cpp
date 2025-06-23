@@ -16,7 +16,6 @@
 #include "hgraph.h"
 
 #include <fmt/format-inl.h>
-#include "impl/flow_searcher.h"
 
 #include <memory>
 #include <stdexcept>
@@ -25,6 +24,7 @@
 #include "data_cell/sparse_graph_datacell.h"
 #include "dataset_impl.h"
 #include "empty_index_binary_set.h"
+#include "impl/flow_searcher.h"
 #include "impl/pruning_strategy.h"
 #include "index/iterator_filter.h"
 #include "logger.h"
@@ -72,6 +72,10 @@ HGraph::HGraph(const HGraphParameterPtr& hgraph_param, const vsag::IndexCommonPa
     this->searcher_ = std::make_shared<BasicSearcher>(common_param, neighbors_mutex_);
 #endif
 
+#endif
+
+#ifdef CACHE_UPPER_GRAPH
+    cached_searcher_ = std::make_shared<BasicSearcher>(common_param, neighbors_mutex_);
 #endif
 
     this->bottom_graph_ =
@@ -240,12 +244,21 @@ HGraph::KnnSearch(const DatasetPtr& query,
     auto begin = Clock::now();
 
     for (auto i = static_cast<int64_t>(this->route_graphs_.size() - 1); i >= 0; --i) {
+#ifdef CACHE_UPPER_GRAPH
+        auto result = this->search_cached_graph(query->GetFloat32Vectors(),
+                                                     this->route_graphs_[i],
+                                                     this->basic_flatten_codes_,
+                                                     search_param);
+#else
         auto result = this->search_one_graph(query->GetFloat32Vectors(),
                                              this->route_graphs_[i],
                                              this->basic_flatten_codes_,
                                              search_param);
+#endif
         search_param.ep = result.top().second;
     }
+
+    std::cout << "Get into bottom graph" << std::endl;
 
     auto params = HGraphSearchParameters::FromJson(parameters);
     FilterPtr ft = nullptr;
@@ -510,6 +523,22 @@ HGraph::search_one_graph(const float* query,
     this->pool_->ReturnOne(visited_list);
     return result;
 }
+
+#ifdef CACHE_UPPER_GRAPH
+template <InnerSearchMode mode = InnerSearchMode::KNN_SEARCH>
+MaxHeap
+HGraph::search_cached_graph(const float* query,
+                            const GraphInterfacePtr& graph,
+                            const FlattenInterfacePtr& flatten,
+                            InnerSearchParam& inner_search_param) const {
+    auto visited_list = this->pool_->TakeOne();
+    auto result =
+        this->cached_searcher_->Search(graph, flatten, visited_list, query, inner_search_param);
+    this->pool_->ReturnOne(visited_list);
+    return result;
+}
+
+#endif
 
 DatasetPtr
 HGraph::RangeSearch(const DatasetPtr& query,
