@@ -180,6 +180,8 @@ flow_search_fn(hnsw_search_opt* search_opt) {
     look_ahead_ids.reserve(SearchContext::LOOK_AHEAD);
 
     while (not candidate_set.empty() && ids_size < 1) {
+        //! important, or make neighbor list exceed and cause other error
+        look_ahead_ids.clear();
         auto current_node_pair = candidate_set.top();
         look_ahead_ids.emplace_back(current_node_pair.second);
         if constexpr (mode == KNN_SEARCH) {
@@ -208,7 +210,7 @@ flow_search_fn(hnsw_search_opt* search_opt) {
         InnerIdType cur_nbr_size = 0;
 
         // clear the nbrs
-        neighbors.clear();
+        // neighbors.clear();
 
         for (auto look_ahead_id : look_ahead_ids) {
             if (mutex_array != nullptr) {
