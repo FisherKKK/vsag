@@ -143,7 +143,7 @@ flow_search_fn(hnsw_search_opt* search_opt) {
         candidate_set.emplace(-dist, ep);
         vl->Set(ep);
         search_context->state_ = 2;
-        std::cout << "Entry point into pq..." << std::endl;
+        // std::cout << "Entry point into pq..." << std::endl;
     } else if (search_context->state_ == 2) {
         // 1. deal with last calculation's result, emplace to the candidate
         for (uint32_t i = 0; i < ids_size; i++) {
@@ -168,7 +168,7 @@ flow_search_fn(hnsw_search_opt* search_opt) {
                 }
             }
         }
-        std::cout << "Process last result..." << std::endl;
+        // std::cout << "Process last result..." << std::endl;
     }
 
     // reset the ids size
@@ -250,7 +250,7 @@ flow_search_fn(hnsw_search_opt* search_opt) {
         }
         ids_size = count_no_visited;
 
-        std::cout << "Input nodes need to be calculated: " << ids_size << " ..." << std::endl;
+        // std::cout << "Input nodes need to be calculated: " << ids_size << " ..." << std::endl;
     }
 
     if (ids_size > 0) {

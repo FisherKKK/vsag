@@ -258,7 +258,7 @@ HGraph::KnnSearch(const DatasetPtr& query,
         search_param.ep = result.top().second;
     }
 
-    std::cout << "Get into bottom graph" << std::endl;
+    // std::cout << "Get into bottom graph" << std::endl;
 
     auto params = HGraphSearchParameters::FromJson(parameters);
     FilterPtr ft = nullptr;
