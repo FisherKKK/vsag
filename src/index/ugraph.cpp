@@ -136,8 +136,14 @@ UGraph::Build(const DatasetPtr& base) {
     auto graph_size = graph_->TotalCount();
     MinEdgeHeap edges(allocator_);
 
+    // store the nearest neighbor id of i
+    UnorderedMap<InnerIdType, InnerIdType> nearest_neighbor_of_i(allocator_);
+
+    // flag whether the point has been merged
+    UnorderedSet<InnerIdType> union_processed(allocator_);
+
     UnionSet us(graph_size, allocator_);
-    auto edges_size = edges.size();
+    // auto edges_size = edges.size();
 
     Vector<float> radius(graph_size, std::numeric_limits<float>::max(), allocator_);
 
@@ -146,12 +152,25 @@ UGraph::Build(const DatasetPtr& base) {
     upper_bound_distances.reserve(graph_size);
 
 
+    // Maybe we need more accurate score: identify the jump line
     auto weighted_distances = [](const Vector<float> &sorted_dists, float alpha) {
+        float diff_line = std::numeric_limits<float>::max();
+        int64_t upper_line;
+        for (upper_line = 1; upper_line < sorted_dists.size(); upper_line++) {
+            auto diff = sorted_dists[upper_line] - sorted_dists[upper_line - 1];
+            if (diff < diff_line) diff_line = diff;
+            else break;
+        }
+
         float weight_sum = .0f, dist_sum = .0f, cur_weight = 1.f;
+        int64_t count_line = 0;
         for (auto d : sorted_dists) {
             dist_sum += cur_weight * d;
             weight_sum += cur_weight;
             cur_weight *= alpha;
+            count_line += 1;
+            if (count_line >= upper_line)
+                break;
         }
         return dist_sum / weight_sum;
     };
@@ -169,6 +188,7 @@ UGraph::Build(const DatasetPtr& base) {
         distances.reserve(32);
 
         // Union closest to each other
+        /** Here is sorted by inner id, so we can't get the nearest neighbor
         {
             auto nearest = nns[0];
             Vector<InnerIdType> nearest_nns(allocator_);
@@ -179,14 +199,30 @@ UGraph::Build(const DatasetPtr& base) {
                 us.Union(nearest, nearest_nearest);
             }
         }
+        **/
+
+        // for nearest neighbor
+        auto min_d = std::numeric_limits<float>::max();
+        InnerIdType min_id = 0;
 
         for (auto nn : nns) {
             auto d = graph_flatten_codes_->ComputePairVectors(i, nn);
             edges.emplace(d, i, nn);
             distances.emplace_back(d);
+
+            if (d < min_d) {
+                min_d = d;
+                min_id = nn;
+            }
         }
 
         std::sort(distances.begin(), distances.end());
+
+        // keep the nearest neighbor
+        {
+           nearest_neighbor_of_i[i] = min_id;
+        }
+
         float r = .0f;
         r = weighted_distances(distances, 0.5f);
 
@@ -207,7 +243,7 @@ UGraph::Build(const DatasetPtr& base) {
     }
 
     std::sort(upper_bound_distances.begin(), upper_bound_distances.end());
-    upper_bound = weighted_distances(upper_bound_distances, 0.2f);
+    upper_bound = weighted_distances(upper_bound_distances, 0.5f);
     std::cout << "Upper bound radius: " << upper_bound << std::endl;
 
 #ifdef OMYDEBUG
@@ -225,7 +261,7 @@ UGraph::Build(const DatasetPtr& base) {
 
     // Compress half edges for performance test
     float last_dist = 0.f, history = 0.f, delta = 0.1f;
-    int64_t count = 0, count_threshold = 32;
+    int64_t count = 0, count_threshold = 0;
 
 
     // std::ofstream edges_writer("/tmp/edges.txt", std::ios_base::out);
@@ -233,15 +269,28 @@ UGraph::Build(const DatasetPtr& base) {
         auto [d, src, dest] = edges.top();
         auto src_root = us.Find(src), dest_root = us.Find(dest);
 
+        auto nearest_of_src = nearest_neighbor_of_i[src];
+        auto nearest_of_dest = nearest_neighbor_of_i[dest];
+
         // edges_writer << d << " ";
         edges.pop();
         // Select which edge should be aggregate
 
+        // only merge once
+        if (union_processed.count(src) || union_processed.count(dest)) {
+            continue;
+        }
+
         auto &src_rd = radius[src], &dest_rd = radius[dest];
 
         // r1^2 + r2^2 - d^2 >= 2 * r1 * r2 * 1.7 / 2
-        if (d < 1e-6 || count < count_threshold || (src_rd + dest_rd >= d && src_rd * src_rd + dest_rd * dest_rd >= 1.414f * src_rd * dest_rd + d * d)) {
+        if (d < 1e-6 || count < count_threshold
+           || ((nearest_of_dest == src && nearest_of_src == dest)) //&& src_rd + dest_rd >= d && src_rd * src_rd + dest_rd * dest_rd >= 1.414f * src_rd * dest_rd + d * d)
+            ) {
             us.Union(src_root, dest_root);
+
+            union_processed.insert(src);
+            union_processed.insert(dest);
             // src_rd = dest_rd = (src_rd + dest_rd + d) / 2.f;
             // src_rd = d;
             // dest_rd = d;
@@ -263,15 +312,15 @@ UGraph::Build(const DatasetPtr& base) {
     buckets_->reserve(graph_size);
 
     // Sets for edge storage
-    // Vector<std::shared_ptr<UnorderedSet<InnerIdType>>> linklist(allocator_);
-    // linklist.reserve(graph_size / 5);
+    Vector<std::shared_ptr<UnorderedSet<InnerIdType>>> linklist(allocator_);
+    linklist.reserve(graph_size / 1.5);
 
     // Keep graph
     for (InnerIdType i = 0; i < graph_size; i++) {
         auto root = us.Find(i);
         // assert(root == i);
-        // Vector<InnerIdType> nns(allocator_);
-        // graph_->GetNeighbors(i, nns);
+        Vector<InnerIdType> nns(allocator_);
+        graph_->GetNeighbors(i, nns);
         InnerIdType index = 0;
 
         if (unique_core.count(root)) {
@@ -283,7 +332,7 @@ UGraph::Build(const DatasetPtr& base) {
             union_core.emplace_back(root);
 
             // Create neighbor set
-            // linklist.emplace_back(std::make_shared<UnorderedSet<InnerIdType>>(allocator_));
+            linklist.emplace_back(std::make_shared<UnorderedSet<InnerIdType>>(allocator_));
 
             // Create bucket
             buckets_->emplace_back(std::make_unique<Vector<InnerIdType>>(allocator_));
@@ -293,8 +342,28 @@ UGraph::Build(const DatasetPtr& base) {
         }
 
         // Merge the edges of graph
-        // linklist[index]->insert(nns.begin(), nns.end());
+        linklist[index]->insert(nns.begin(), nns.end());
         buckets_->at(index)->emplace_back(i);
+    }
+
+    auto core_size = (InnerIdType)union_core.size();
+
+    // The problem is that the neighbor id is not uniform
+    // we should transform them into core id
+    {
+        for (int64_t i = 0; i < core_size; i++) {
+            auto nns = linklist[i];
+            UnorderedSet<InnerIdType> core_nns(allocator_);
+            for (auto nn = nns->begin(); nn != nns->end(); ++nn) {
+                auto root_nn = us.Find(*nn);
+                auto core_nn = unique_core[root_nn];
+
+                if (core_nn != i)
+                    core_nns.insert(core_nn);
+            }
+            nns->clear();
+            nns->insert(core_nns.begin(), core_nns.end());
+        }
     }
 
     // Construct core --> unique id
@@ -329,7 +398,6 @@ UGraph::Build(const DatasetPtr& base) {
         return min_pid;
     };
 
-    auto core_size = (InnerIdType)union_core.size();
 
     std::cout << "Compressed graph size: " << core_size << std::endl;
     int64_t cur_offset = 0;
@@ -347,7 +415,8 @@ UGraph::Build(const DatasetPtr& base) {
 
     core_ids_.swap(union_core);
 
-    // rebuild graph?
+    // rebuild graph or merge neighbor ?
+
     graph_flatten_codes_.reset();
     graph_.reset();
 
@@ -359,11 +428,24 @@ UGraph::Build(const DatasetPtr& base) {
         graph_flatten_codes_->InsertVector(core_vec);
     }
 
-    ODescent refine_graph_builder(
-        odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
-    refine_graph_builder.Build();
-    refine_graph_builder.SaveGraph(graph_);
+    // rebuild
+    /*
+    {
+        ODescent refine_graph_builder(
+            odescent_param_, graph_flatten_codes_, allocator_, common_param_.thread_pool_.get());
+        refine_graph_builder.Build();
+        refine_graph_builder.SaveGraph(graph_);
+    }
+    */
 
+    // merge neighbor
+    {
+        for (int64_t i = 0; i < core_size; i++) {
+            auto core_nn = linklist[i];
+            Vector<InnerIdType> edges(core_nn->begin(), core_nn->end(), allocator_);
+            graph_->InsertNeighborsById(i, edges);
+        }
+    }
 
 #ifdef OMYDEBUG
     {
@@ -845,12 +927,12 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
                 "type": "block_memory_io",
                 "file_path": "./default_file_path"
             },
-            "max_degree": 32,
+            "max_degree": 16,
             "init_capacity": 100
         },
         "odescent": {
-            "max_degree": 32,
-            "alpha": 1.4,
+            "max_degree": 16,
+            "alpha": 1.2,
             "graph_iter_turn": 30,
             "neighbor_sample_rate": 0.3,
             "min_in_degree": 4,
@@ -878,7 +960,7 @@ static const std::string UGRAPH_PARAMS_TEMPLATE =
             }
         },
         "build_params": {
-            "use_quantization": true,
+            "use_quantization": false,
             "build_thread_count": 100,
             "capacity": 48,
             "bucket_file": "/tmp/test_ugraph_sift/sift_buckets.bin"

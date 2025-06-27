@@ -50,6 +50,11 @@ public:
         return "ugraph";
     }
 
+    [[nodiscard]] InnerIndexPtr
+    Fork(const IndexCommonParam& param) override {
+        return std::make_shared<UGraph>(this->create_param_ptr_, param);
+    }
+
     void
     InitFeatures() override {
     }

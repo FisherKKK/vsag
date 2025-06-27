@@ -32,9 +32,9 @@
 #include "index/hnsw_zparameters.h"
 #include "index/index_common_param.h"
 #include "index/index_impl.h"
-#include "index/pag.h"
-#include "index/pyramid.h"
-#include "index/pyramid_zparameters.h"
+// #include "index/pag.h"
+#include "algorithm/pyramid.h"
+#include "algorithm/pyramid_zparameters.h"
 #include "index/ugraph.h"
 #include "resource_owner_wrapper.h"
 #include "safe_thread_pool.h"
@@ -143,7 +143,9 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
             auto sparse_index =
                 std::make_shared<IndexImpl<SparseIndex>>(sparse_json, index_common_params);
             return sparse_index;
-        } else if (name == INDEX_PAGRAPH) {
+        }
+        /*
+        else if (name == INDEX_PAGRAPH) {
             logger::debug("created a pagraph index");
             JsonType pagraph_json;
             if (parsed_params.contains(INDEX_PARAM)) {
@@ -152,7 +154,9 @@ Engine::CreateIndex(const std::string& origin_name, const std::string& parameter
             auto pagraph_index =
                 std::make_shared<IndexImpl<PAGraph>>(pagraph_json, index_common_params);
             return pagraph_index;
-        } else if (name == INDEX_UGRAPH) {
+        }
+        */
+        else if (name == INDEX_UGRAPH) {
             logger::debug("created a ugraph index");
             JsonType ugraph_json;
             if (parsed_params.contains(INDEX_PARAM)) {

@@ -32,7 +32,7 @@ using namespace nlohmann;
 using namespace spdlog;
 using namespace vsag;
 using namespace vsag::eval;
-// #define ODEBUG
+#define ODEBUG
 
 static double
 get_recall(const float* distances,
@@ -59,7 +59,7 @@ run_test(const std::string& index_name,
          const std::string& dataset_path);
 
 const static std::string DIR_NAME = "/tmp/test_ugraph_sift/";
-const static std::string META_DATA_FILE = "uragh_sift_meta.data";
+const static std::string META_DATA_FILE = "ugraph_sift_meta.data";
 
 int
 main(int argc, char* argv[]) {
@@ -117,8 +117,10 @@ public:
           const std::string& build_parameters) {
         spdlog::debug("index_name: " + index_name);
         spdlog::debug("build_parameters: " + build_parameters);
-        vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
-        vsag::Engine e(&resource);
+
+        // vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
+        // vsag::Engine e(&resource);
+        vsag::Engine e(nullptr);
         auto index = e.CreateIndex(index_name, build_parameters).value();
 
         spdlog::debug("dataset_path: " + dataset_path);

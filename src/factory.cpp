@@ -162,8 +162,8 @@ private:
 
 std::shared_ptr<Reader>
 Factory::CreateLocalFileReader(const std::string& filename, int64_t base_offset, int64_t size) {
+    // return std::make_shared<LocalFileAsyncReader>(filename, base_offset, size);
     return std::make_shared<LocalFileAsyncReader>(filename, base_offset, size);
-    // return std::make_shared<LocalFileReader>(filename, base_offset, size);
 }
 
 }  // namespace vsag
